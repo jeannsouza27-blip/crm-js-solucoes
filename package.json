@@ -1,0 +1,14 @@
+{
+  "name": "crm-js-solucoes",
+  "version": "1.0.0",
+  "description": "CRM JS Soluções",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
