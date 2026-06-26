@@ -64,7 +64,7 @@ function atualizarStats() {
   const filtrados = getClientesFiltrados();
   document.getElementById('stat-total').textContent = clientes.length;
   document.getElementById('stat-servicos').textContent = formatBRL(clientes.reduce((s, c) => s + (c.valor_servico || 0), 0));
-  document.getElementById('stat-mensais').textContent = formatBRL(clientes.reduce((s, c) => s + (c.valor_mensais || 0), 0));
+  document.getElementById('stat-mensais').textContent = formatBRL(clientes.reduce((s, c) => s + (c.valor_mensais || 0) + (c.valor_extra || 0), 0));
   document.getElementById('stat-ativos').textContent = clientes.filter(c => c.status === 'ativo').length;
 }
 
@@ -105,7 +105,8 @@ function renderizarTabela() {
       <td>${c.telefone ? `<a href="tel:${esc(c.telefone)}" style="color:var(--accent);text-decoration:none">${esc(c.telefone)}</a>` : '<span style="color:var(--text-secondary)">—</span>'}</td>
       <td class="valor">${formatBRL(c.valor_servico)}</td>
       <td>
-        <div class="valor">${formatBRL(c.valor_mensais)}/mês</div>
+        <div class="valor">${formatBRL((c.valor_mensais || 0) + (c.valor_extra || 0))}/mês</div>
+        ${c.valor_extra ? `<div style="font-size:11px;color:var(--text-secondary)">${formatBRL(c.valor_mensais)} + ${formatBRL(c.valor_extra)} extra</div>` : ''}
         ${c.data_vencimento ? `<div style="font-size:12px;color:${vencimentoCor(c.data_vencimento)}">${formatData(c.data_vencimento)}</div>` : ''}
       </td>
       <td>${c.data_entrega ? formatData(c.data_entrega) : '<span style="color:var(--text-secondary)">—</span>'}</td>
@@ -130,7 +131,9 @@ function abrirModal(id) {
   document.getElementById('f-telefone').value = c ? (c.telefone || '') : '';
   document.getElementById('f-servico').value = c ? c.valor_servico : '';
   document.getElementById('f-mensais').value = c ? c.valor_mensais : '';
+  document.getElementById('f-extra').value = c ? (c.valor_extra || '') : '';
   document.getElementById('f-vencimento').value = c && c.data_vencimento ? c.data_vencimento.split('T')[0] : '';
+  atualizarTotalPreview();
   document.getElementById('f-data').value = c && c.data_entrega ? c.data_entrega.split('T')[0] : '';
   document.getElementById('f-status').value = c ? c.status : 'ativo';
   document.getElementById('f-obs').value = c ? c.observacoes : '';
@@ -154,6 +157,7 @@ async function salvarCliente(e) {
     valor_servico: parseFloat(document.getElementById('f-servico').value) || 0,
     data_entrega: document.getElementById('f-data').value || null,
     valor_mensais: parseFloat(document.getElementById('f-mensais').value) || 0,
+    valor_extra: parseFloat(document.getElementById('f-extra').value) || 0,
     data_vencimento: document.getElementById('f-vencimento').value || null,
     status: document.getElementById('f-status').value,
     observacoes: document.getElementById('f-obs').value.trim()
@@ -205,6 +209,19 @@ function statusLabel(s) {
   return { ativo: 'Ativo', concluido: 'Concluído', pendente: 'Pendente' }[s] || s;
 }
 
+function atualizarTotalPreview() {
+  const mensais = parseFloat(document.getElementById('f-mensais').value) || 0;
+  const extra   = parseFloat(document.getElementById('f-extra').value)   || 0;
+  const preview = document.getElementById('total-preview');
+  if (mensais > 0 || extra > 0) {
+    document.getElementById('total-valor').textContent = formatBRL(mensais + extra);
+    preview.style.display = 'flex';
+    preview.style.flexDirection = 'column';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
 function vencimentoCor(d) {
   if (!d) return 'var(--text-secondary)';
   const hoje = new Date(); hoje.setHours(0,0,0,0);
@@ -227,6 +244,8 @@ document.getElementById('modal-form').addEventListener('submit', salvarCliente);
 document.getElementById('confirm-delete-btn').addEventListener('click', executarDelete);
 document.getElementById('busca').addEventListener('input', renderizarTabela);
 document.getElementById('filtro-status').addEventListener('change', renderizarTabela);
+document.getElementById('f-mensais').addEventListener('input', atualizarTotalPreview);
+document.getElementById('f-extra').addEventListener('input', atualizarTotalPreview);
 
 document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('modal-overlay')) fecharModal();

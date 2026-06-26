@@ -21,6 +21,7 @@ db.exec(`
     valor_servico REAL DEFAULT 0,
     data_entrega TEXT,
     valor_mensais REAL DEFAULT 0,
+    valor_extra REAL DEFAULT 0,
     data_vencimento TEXT,
     status TEXT DEFAULT 'ativo',
     observacoes TEXT DEFAULT '',
@@ -32,6 +33,7 @@ db.exec(`
 const cols = db.prepare('PRAGMA table_info(clientes)').all().map(c => c.name);
 if (!cols.includes('nome_contato'))    db.exec("ALTER TABLE clientes ADD COLUMN nome_contato TEXT DEFAULT ''");
 if (!cols.includes('telefone'))        db.exec("ALTER TABLE clientes ADD COLUMN telefone TEXT DEFAULT ''");
+if (!cols.includes('valor_extra'))     db.exec('ALTER TABLE clientes ADD COLUMN valor_extra REAL DEFAULT 0');
 if (!cols.includes('data_vencimento')) db.exec('ALTER TABLE clientes ADD COLUMN data_vencimento TEXT');
 
 app.use(express.json());
@@ -65,9 +67,9 @@ app.post('/api/clientes', auth, (req, res) => {
   const { nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes } = req.body || {};
   if (!nome_empresa) return res.status(400).json({ error: 'Nome da empresa obrigatório' });
   const r = db.prepare(`
-    INSERT INTO clientes (nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, data_vencimento || null, status || 'ativo', observacoes || '');
+    INSERT INTO clientes (nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, valor_extra, data_vencimento, status, observacoes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, data_vencimento || null, status || 'ativo', observacoes || '');
   res.status(201).json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(r.lastInsertRowid));
 });
 
@@ -75,9 +77,9 @@ app.put('/api/clientes/:id', auth, (req, res) => {
   const { nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes } = req.body || {};
   db.prepare(`
     UPDATE clientes
-    SET nome_empresa=?, nome_contato=?, telefone=?, valor_servico=?, data_entrega=?, valor_mensais=?, data_vencimento=?, status=?, observacoes=?
+    SET nome_empresa=?, nome_contato=?, telefone=?, valor_servico=?, data_entrega=?, valor_mensais=?, valor_extra=?, data_vencimento=?, status=?, observacoes=?
     WHERE id=?
-  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, data_vencimento || null, status, observacoes || '', req.params.id);
+  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, data_vencimento || null, status, observacoes || '', req.params.id);
   res.json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(req.params.id));
 });
 
