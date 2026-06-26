@@ -132,6 +132,7 @@ function abrirModal(id) {
   document.getElementById('f-servico').value = c ? c.valor_servico : '';
   document.getElementById('f-mensais').value = c ? c.valor_mensais : '';
   document.getElementById('f-extra').value = c ? (c.valor_extra || '') : '';
+  document.getElementById('f-motivo-extra').value = c ? (c.motivo_extra || '') : '';
   document.getElementById('f-vencimento').value = c && c.data_vencimento ? c.data_vencimento.split('T')[0] : '';
   atualizarTotalPreview();
   document.getElementById('f-data').value = c && c.data_entrega ? c.data_entrega.split('T')[0] : '';
@@ -158,6 +159,7 @@ async function salvarCliente(e) {
     data_entrega: document.getElementById('f-data').value || null,
     valor_mensais: parseFloat(document.getElementById('f-mensais').value) || 0,
     valor_extra: parseFloat(document.getElementById('f-extra').value) || 0,
+    motivo_extra: document.getElementById('f-motivo-extra').value.trim(),
     data_vencimento: document.getElementById('f-vencimento').value || null,
     status: document.getElementById('f-status').value,
     observacoes: document.getElementById('f-obs').value.trim()
@@ -213,6 +215,7 @@ function atualizarTotalPreview() {
   const mensais = parseFloat(document.getElementById('f-mensais').value) || 0;
   const extra   = parseFloat(document.getElementById('f-extra').value)   || 0;
   const preview = document.getElementById('total-preview');
+  const motivoRow = document.getElementById('motivo-extra-row');
   if (mensais > 0 || extra > 0) {
     document.getElementById('total-valor').textContent = formatBRL(mensais + extra);
     preview.style.display = 'flex';
@@ -220,6 +223,8 @@ function atualizarTotalPreview() {
   } else {
     preview.style.display = 'none';
   }
+  motivoRow.style.display = extra > 0 ? 'block' : 'none';
+  if (extra === 0) document.getElementById('f-motivo-extra').value = '';
 }
 
 function vencimentoCor(d) {
