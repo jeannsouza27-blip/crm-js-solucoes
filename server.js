@@ -10,7 +10,6 @@ const ADMIN_USER = process.env.ADMIN_USER || 'jeann';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'js@2026';
 const DB_PATH = process.env.DB_PATH || '/data/crm.db';
 
-// Banco de dados
 const db = new Database(DB_PATH);
 
 db.exec(`
@@ -29,19 +28,14 @@ db.exec(`
   )
 `);
 
-// Adicionar colunas novas em banco já existente (migração segura)
-const cols = db.prepare("PRAGMA table_info(clientes)").all().map(c => c.name);
+// Migração segura para bancos já existentes
+const cols = db.prepare('PRAGMA table_info(clientes)').all().map(c => c.name);
 if (!cols.includes('nome_contato'))    db.exec("ALTER TABLE clientes ADD COLUMN nome_contato TEXT DEFAULT ''");
 if (!cols.includes('telefone'))        db.exec("ALTER TABLE clientes ADD COLUMN telefone TEXT DEFAULT ''");
-if (!cols.includes('data_vencimento')) db.exec("ALTER TABLE clientes ADD COLUMN data_vencimento TEXT");
+if (!cols.includes('data_vencimento')) db.exec('ALTER TABLE clientes ADD COLUMN data_vencimento TEXT');
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Rota explícita para o CRM
-app.get('/crm', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'crm', 'index.html'));
-});
 
 function auth(req, res, next) {
   const token = (req.headers.authorization || '').replace('Bearer ', '');
@@ -54,7 +48,6 @@ function auth(req, res, next) {
   }
 }
 
-// Login
 app.post('/api/login', (req, res) => {
   const { usuario, senha } = req.body || {};
   if (usuario === ADMIN_USER && senha === ADMIN_PASS) {
@@ -64,38 +57,22 @@ app.post('/api/login', (req, res) => {
   res.status(401).json({ error: 'Usuário ou senha incorretos' });
 });
 
-// Listar clientes
 app.get('/api/clientes', auth, (req, res) => {
-  const clientes = db.prepare('SELECT * FROM clientes ORDER BY criado_em DESC').all();
-  res.json(clientes);
+  res.json(db.prepare('SELECT * FROM clientes ORDER BY criado_em DESC').all());
 });
 
-// Adicionar cliente
 app.post('/api/clientes', auth, (req, res) => {
-  const { nome_empresa, valor_servico, data_entrega, valor_mensais, status, observacoes } = req.body || {};
+  const { nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes } = req.body || {};
   if (!nome_empresa) return res.status(400).json({ error: 'Nome da empresa obrigatório' });
-  const stmt = db.prepare(`
+  const r = db.prepare(`
     INSERT INTO clientes (nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  const r = stmt.run(
-    nome_empresa,
-    req.body.nome_contato || '',
-    req.body.telefone || '',
-    Number(valor_servico) || 0,
-    data_entrega || null,
-    Number(valor_mensais) || 0,
-    req.body.data_vencimento || null,
-    status || 'ativo',
-    observacoes || ''
-  );
+  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, data_vencimento || null, status || 'ativo', observacoes || '');
   res.status(201).json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(r.lastInsertRowid));
 });
 
-// Atualizar cliente
 app.put('/api/clientes/:id', auth, (req, res) => {
-  const { nome_empresa, valor_servico, data_entrega, valor_mensais, status, observacoes } = req.body || {};
-  const { nome_contato, telefone, data_vencimento } = req.body || {};
+  const { nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes } = req.body || {};
   db.prepare(`
     UPDATE clientes
     SET nome_empresa=?, nome_contato=?, telefone=?, valor_servico=?, data_entrega=?, valor_mensais=?, data_vencimento=?, status=?, observacoes=?
@@ -104,7 +81,6 @@ app.put('/api/clientes/:id', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(req.params.id));
 });
 
-// Deletar cliente
 app.delete('/api/clientes/:id', auth, (req, res) => {
   db.prepare('DELETE FROM clientes WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
