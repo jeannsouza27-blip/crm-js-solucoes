@@ -72,7 +72,10 @@ function getClientesFiltrados() {
   const busca = document.getElementById('busca').value.toLowerCase();
   const status = document.getElementById('filtro-status').value;
   return clientes.filter(c => {
-    const matchBusca = !busca || c.nome_empresa.toLowerCase().includes(busca);
+    const matchBusca = !busca ||
+      c.nome_empresa.toLowerCase().includes(busca) ||
+      (c.nome_contato || '').toLowerCase().includes(busca) ||
+      (c.telefone || '').includes(busca);
     const matchStatus = !status || c.status === status;
     return matchBusca && matchStatus;
   });
@@ -97,11 +100,15 @@ function renderizarTabela() {
     <tr>
       <td>
         <div class="nome-empresa">${esc(c.nome_empresa)}</div>
-        ${c.observacoes ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:3px">${esc(c.observacoes)}</div>` : ''}
+        ${c.nome_contato ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:2px">👤 ${esc(c.nome_contato)}</div>` : ''}
       </td>
+      <td>${c.telefone ? `<a href="tel:${esc(c.telefone)}" style="color:var(--accent);text-decoration:none">${esc(c.telefone)}</a>` : '<span style="color:var(--text-secondary)">—</span>'}</td>
       <td class="valor">${formatBRL(c.valor_servico)}</td>
+      <td>
+        <div class="valor">${formatBRL(c.valor_mensais)}/mês</div>
+        ${c.data_vencimento ? `<div style="font-size:12px;color:var(--text-secondary)">Vence dia ${c.data_vencimento}</div>` : ''}
+      </td>
       <td>${c.data_entrega ? formatData(c.data_entrega) : '<span style="color:var(--text-secondary)">—</span>'}</td>
-      <td class="valor">${formatBRL(c.valor_mensais)}/mês</td>
       <td><span class="badge badge-${c.status}">${statusLabel(c.status)}</span></td>
       <td>
         <div class="acoes">
@@ -119,8 +126,11 @@ function abrirModal(id) {
   document.getElementById('modal-titulo').textContent = c ? 'Editar Cliente' : 'Novo Cliente';
   document.getElementById('edit-id').value = c ? c.id : '';
   document.getElementById('f-nome').value = c ? c.nome_empresa : '';
+  document.getElementById('f-contato').value = c ? (c.nome_contato || '') : '';
+  document.getElementById('f-telefone').value = c ? (c.telefone || '') : '';
   document.getElementById('f-servico').value = c ? c.valor_servico : '';
   document.getElementById('f-mensais').value = c ? c.valor_mensais : '';
+  document.getElementById('f-vencimento').value = c ? (c.data_vencimento || '') : '';
   document.getElementById('f-data').value = c && c.data_entrega ? c.data_entrega.split('T')[0] : '';
   document.getElementById('f-status').value = c ? c.status : 'ativo';
   document.getElementById('f-obs').value = c ? c.observacoes : '';
@@ -139,9 +149,12 @@ async function salvarCliente(e) {
   const erro = document.getElementById('modal-error');
   const body = {
     nome_empresa: document.getElementById('f-nome').value.trim(),
+    nome_contato: document.getElementById('f-contato').value.trim(),
+    telefone: document.getElementById('f-telefone').value.trim(),
     valor_servico: parseFloat(document.getElementById('f-servico').value) || 0,
     data_entrega: document.getElementById('f-data').value || null,
     valor_mensais: parseFloat(document.getElementById('f-mensais').value) || 0,
+    data_vencimento: document.getElementById('f-vencimento').value || null,
     status: document.getElementById('f-status').value,
     observacoes: document.getElementById('f-obs').value.trim()
   };
