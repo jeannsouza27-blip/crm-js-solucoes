@@ -106,7 +106,7 @@ function renderizarTabela() {
       <td class="valor">${formatBRL(c.valor_servico)}</td>
       <td>
         <div class="valor">${formatBRL(c.valor_mensais)}/mês</div>
-        ${c.data_vencimento ? `<div style="font-size:12px;color:var(--text-secondary)">Vence dia ${c.data_vencimento}</div>` : ''}
+        ${c.data_vencimento ? `<div style="font-size:12px;color:${vencimentoCor(c.data_vencimento)}">${formatData(c.data_vencimento)}</div>` : ''}
       </td>
       <td>${c.data_entrega ? formatData(c.data_entrega) : '<span style="color:var(--text-secondary)">—</span>'}</td>
       <td><span class="badge badge-${c.status}">${statusLabel(c.status)}</span></td>
@@ -130,7 +130,7 @@ function abrirModal(id) {
   document.getElementById('f-telefone').value = c ? (c.telefone || '') : '';
   document.getElementById('f-servico').value = c ? c.valor_servico : '';
   document.getElementById('f-mensais').value = c ? c.valor_mensais : '';
-  document.getElementById('f-vencimento').value = c ? (c.data_vencimento || '') : '';
+  document.getElementById('f-vencimento').value = c && c.data_vencimento ? c.data_vencimento.split('T')[0] : '';
   document.getElementById('f-data').value = c && c.data_entrega ? c.data_entrega.split('T')[0] : '';
   document.getElementById('f-status').value = c ? c.status : 'ativo';
   document.getElementById('f-obs').value = c ? c.observacoes : '';
@@ -203,6 +203,16 @@ function formatData(d) {
 
 function statusLabel(s) {
   return { ativo: 'Ativo', concluido: 'Concluído', pendente: 'Pendente' }[s] || s;
+}
+
+function vencimentoCor(d) {
+  if (!d) return 'var(--text-secondary)';
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const venc = new Date(d + 'T00:00:00');
+  const diff = Math.ceil((venc - hoje) / 86400000);
+  if (diff < 0) return '#f87171';
+  if (diff <= 5) return '#fbbf24';
+  return 'var(--text-secondary)';
 }
 
 function esc(str) {
