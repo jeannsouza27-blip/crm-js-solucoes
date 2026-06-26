@@ -29,6 +29,11 @@ db.exec(`
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Rota explícita para o CRM
+app.get('/crm', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'crm', 'index.html'));
+});
+
 function auth(req, res, next) {
   const token = (req.headers.authorization || '').replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Não autorizado' });
