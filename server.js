@@ -40,6 +40,31 @@ if (!cols.includes('motivo_extra'))    db.exec("ALTER TABLE clientes ADD COLUMN 
 if (!cols.includes('data_vencimento')) db.exec('ALTER TABLE clientes ADD COLUMN data_vencimento TEXT');
 if (!cols.includes('pagamento_confirmado')) db.exec('ALTER TABLE clientes ADD COLUMN pagamento_confirmado INTEGER DEFAULT 0');
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS pagamentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+    valor REAL NOT NULL,
+    mes_referencia TEXT NOT NULL,
+    criado_em TEXT DEFAULT (datetime('now', 'localtime'))
+  )
+`);
+
+function mesAtual() {
+  return db.prepare("SELECT strftime('%Y-%m', 'now', 'localtime') AS mes").get().mes;
+}
+
+// Registra/remove o pagamento do mês corrente conforme o checkbox "pagamento_confirmado"
+function sincronizarPagamento(clienteId, confirmado, valorTotal) {
+  const mes = mesAtual();
+  const existente = db.prepare('SELECT id FROM pagamentos WHERE cliente_id=? AND mes_referencia=?').get(clienteId, mes);
+  if (confirmado) {
+    if (!existente) db.prepare('INSERT INTO pagamentos (cliente_id, valor, mes_referencia) VALUES (?, ?, ?)').run(clienteId, valorTotal, mes);
+  } else if (existente) {
+    db.prepare('DELETE FROM pagamentos WHERE id=?').run(existente.id);
+  }
+}
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -74,6 +99,7 @@ app.post('/api/clientes', auth, (req, res) => {
     INSERT INTO clientes (nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, valor_extra, motivo_extra, data_vencimento, pagamento_confirmado, status, observacoes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', data_vencimento || null, pagamento_confirmado ? 1 : 0, status || 'ativo', observacoes || '');
+  sincronizarPagamento(r.lastInsertRowid, !!pagamento_confirmado, (Number(valor_mensais) || 0) + (Number(req.body.valor_extra) || 0));
   res.status(201).json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(r.lastInsertRowid));
 });
 
@@ -84,10 +110,25 @@ app.put('/api/clientes/:id', auth, (req, res) => {
     SET nome_empresa=?, nome_contato=?, telefone=?, valor_servico=?, data_entrega=?, valor_mensais=?, valor_extra=?, motivo_extra=?, data_vencimento=?, pagamento_confirmado=?, status=?, observacoes=?
     WHERE id=?
   `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', data_vencimento || null, pagamento_confirmado ? 1 : 0, status, observacoes || '', req.params.id);
+  sincronizarPagamento(Number(req.params.id), !!pagamento_confirmado, (Number(valor_mensais) || 0) + (Number(req.body.valor_extra) || 0));
   res.json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(req.params.id));
 });
 
+app.get('/api/relatorio', auth, (req, res) => {
+  const mes = /^\d{4}-\d{2}$/.test(req.query.mes || '') ? req.query.mes : mesAtual();
+  const pagamentos = db.prepare(`
+    SELECT p.id, p.valor, p.criado_em, c.nome_empresa
+    FROM pagamentos p
+    JOIN clientes c ON c.id = p.cliente_id
+    WHERE p.mes_referencia = ?
+    ORDER BY c.nome_empresa
+  `).all(mes);
+  const total = pagamentos.reduce((s, p) => s + p.valor, 0);
+  res.json({ mes, total, pagamentos });
+});
+
 app.delete('/api/clientes/:id', auth, (req, res) => {
+  db.prepare('DELETE FROM pagamentos WHERE cliente_id = ?').run(req.params.id);
   db.prepare('DELETE FROM clientes WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });

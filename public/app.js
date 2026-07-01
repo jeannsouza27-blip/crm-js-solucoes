@@ -181,6 +181,46 @@ async function salvarCliente(e) {
   }
 }
 
+// ===== RELATÓRIO MENSAL =====
+function abrirRelatorio() {
+  const mesInput = document.getElementById('relatorio-mes');
+  if (!mesInput.value) mesInput.value = new Date().toISOString().slice(0, 7);
+  document.getElementById('relatorio-overlay').style.display = 'flex';
+  carregarRelatorio();
+}
+
+function fecharRelatorio() {
+  document.getElementById('relatorio-overlay').style.display = 'none';
+}
+
+async function carregarRelatorio() {
+  const mes = document.getElementById('relatorio-mes').value;
+  const data = await api('GET', `/api/relatorio?mes=${mes}`);
+  const pagamentos = (data && data.pagamentos) || [];
+  const tbody = document.getElementById('relatorio-tabela-body');
+  const tabela = document.getElementById('relatorio-tabela');
+  const vazio = document.getElementById('relatorio-vazio');
+
+  document.getElementById('relatorio-total').textContent = formatBRL(data ? data.total : 0);
+
+  if (pagamentos.length === 0) {
+    tbody.innerHTML = '';
+    tabela.style.display = 'none';
+    vazio.style.display = 'block';
+    return;
+  }
+
+  tabela.style.display = 'table';
+  vazio.style.display = 'none';
+  tbody.innerHTML = pagamentos.map(p => `
+    <tr>
+      <td>${esc(p.nome_empresa)}</td>
+      <td class="valor">${formatBRL(p.valor)}</td>
+      <td>${new Date(p.criado_em.replace(' ', 'T')).toLocaleDateString('pt-BR')}</td>
+    </tr>
+  `).join('');
+}
+
 // ===== DELETE =====
 function confirmarDelete(id) {
   deletandoId = id;
@@ -261,6 +301,13 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 
 document.getElementById('confirm-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('confirm-overlay')) fecharConfirm();
+});
+
+document.getElementById('btn-relatorio').addEventListener('click', abrirRelatorio);
+document.getElementById('relatorio-mes').addEventListener('change', carregarRelatorio);
+
+document.getElementById('relatorio-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('relatorio-overlay')) fecharRelatorio();
 });
 
 // Iniciar se já tiver token
