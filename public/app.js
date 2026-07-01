@@ -110,6 +110,7 @@ function renderizarTabela() {
         ${c.data_vencimento ? `<div style="font-size:12px;color:${vencimentoCor(c.data_vencimento)}">${formatData(c.data_vencimento)}</div>` : ''}
       </td>
       <td>${c.data_entrega ? formatData(c.data_entrega) : '<span style="color:var(--text-secondary)">—</span>'}</td>
+      <td><span class="badge badge-pagamento-${c.pagamento_confirmado ? 'ok' : 'pendente'}">${c.pagamento_confirmado ? '✅ Confirmado' : '⏳ Pendente'}</span></td>
       <td><span class="badge badge-${c.status}">${statusLabel(c.status)}</span></td>
       <td>
         <div class="acoes">
@@ -134,6 +135,7 @@ function abrirModal(id) {
   document.getElementById('f-extra').value = c ? (c.valor_extra || '') : '';
   document.getElementById('f-motivo-extra').value = c ? (c.motivo_extra || '') : '';
   document.getElementById('f-vencimento').value = c && c.data_vencimento ? c.data_vencimento.split('T')[0] : '';
+  document.getElementById('f-pagamento-confirmado').checked = c ? !!c.pagamento_confirmado : false;
   atualizarTotalPreview();
   document.getElementById('f-data').value = c && c.data_entrega ? c.data_entrega.split('T')[0] : '';
   document.getElementById('f-status').value = c ? c.status : 'ativo';
@@ -161,6 +163,7 @@ async function salvarCliente(e) {
     valor_extra: parseFloat(document.getElementById('f-extra').value) || 0,
     motivo_extra: document.getElementById('f-motivo-extra').value.trim(),
     data_vencimento: document.getElementById('f-vencimento').value || null,
+    pagamento_confirmado: document.getElementById('f-pagamento-confirmado').checked,
     status: document.getElementById('f-status').value,
     observacoes: document.getElementById('f-obs').value.trim()
   };
