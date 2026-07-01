@@ -65,6 +65,22 @@ function sincronizarPagamento(clienteId, confirmado, valorTotal) {
   }
 }
 
+function proximoMes(dataStr) {
+  const [ano, mes, dia] = dataStr.split('-').map(Number);
+  const ultimoDiaMesSeguinte = new Date(ano, mes + 1, 0).getDate();
+  const novaData = new Date(ano, mes, Math.min(dia, ultimoDiaMesSeguinte));
+  return `${novaData.getFullYear()}-${String(novaData.getMonth() + 1).padStart(2, '0')}-${String(novaData.getDate()).padStart(2, '0')}`;
+}
+
+// Quando o pagamento é confirmado agora (não estava confirmado antes), já avança
+// o vencimento para o próximo mês e deixa o novo ciclo como pendente
+function avancarCicloSeConfirmado(estavaConfirmado, confirmadoAgora, dataVencimento) {
+  if (confirmadoAgora && !estavaConfirmado && dataVencimento) {
+    return { dataVencimento: proximoMes(dataVencimento), pagamentoConfirmado: 0 };
+  }
+  return { dataVencimento: dataVencimento || null, pagamentoConfirmado: confirmadoAgora ? 1 : 0 };
+}
+
 // Backfill: clientes já marcados como confirmados antes de existir o histórico
 // não tinham registro nenhum. Garante o registro do mês corrente para eles.
 for (const c of db.prepare('SELECT id, valor_mensais, valor_extra FROM clientes WHERE pagamento_confirmado = 1').all()) {
@@ -101,21 +117,25 @@ app.get('/api/clientes', auth, (req, res) => {
 app.post('/api/clientes', auth, (req, res) => {
   const { nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes, pagamento_confirmado } = req.body || {};
   if (!nome_empresa) return res.status(400).json({ error: 'Nome da empresa obrigatório' });
+  const ciclo = avancarCicloSeConfirmado(false, !!pagamento_confirmado, data_vencimento || null);
   const r = db.prepare(`
     INSERT INTO clientes (nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, valor_extra, motivo_extra, data_vencimento, pagamento_confirmado, status, observacoes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', data_vencimento || null, pagamento_confirmado ? 1 : 0, status || 'ativo', observacoes || '');
+  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', ciclo.dataVencimento, ciclo.pagamentoConfirmado, status || 'ativo', observacoes || '');
   sincronizarPagamento(r.lastInsertRowid, !!pagamento_confirmado, (Number(valor_mensais) || 0) + (Number(req.body.valor_extra) || 0));
   res.status(201).json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(r.lastInsertRowid));
 });
 
 app.put('/api/clientes/:id', auth, (req, res) => {
   const { nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes, pagamento_confirmado } = req.body || {};
+  const anterior = db.prepare('SELECT pagamento_confirmado FROM clientes WHERE id=?').get(req.params.id);
+  const estavaConfirmado = !!(anterior && anterior.pagamento_confirmado);
+  const ciclo = avancarCicloSeConfirmado(estavaConfirmado, !!pagamento_confirmado, data_vencimento || null);
   db.prepare(`
     UPDATE clientes
     SET nome_empresa=?, nome_contato=?, telefone=?, valor_servico=?, data_entrega=?, valor_mensais=?, valor_extra=?, motivo_extra=?, data_vencimento=?, pagamento_confirmado=?, status=?, observacoes=?
     WHERE id=?
-  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', data_vencimento || null, pagamento_confirmado ? 1 : 0, status, observacoes || '', req.params.id);
+  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', ciclo.dataVencimento, ciclo.pagamentoConfirmado, status, observacoes || '', req.params.id);
   sincronizarPagamento(Number(req.params.id), !!pagamento_confirmado, (Number(valor_mensais) || 0) + (Number(req.body.valor_extra) || 0));
   res.json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(req.params.id));
 });
