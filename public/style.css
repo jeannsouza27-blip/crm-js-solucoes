@@ -171,7 +171,7 @@ main {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
-  overflow: hidden;
+  overflow: auto;
 }
 
 table {
@@ -262,7 +262,7 @@ tbody tr:hover { background: rgba(56,189,248,0.03); }
 .empty-state p { margin-bottom: 20px; font-size: 15px; }
 
 /* ===== MODAL ===== */
-#modal-overlay, #confirm-overlay {
+#modal-overlay, #confirm-overlay, #relatorio-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.65);
@@ -309,7 +309,7 @@ tbody tr:hover { background: rgba(56,189,248,0.03); }
 
 .modal-close:hover { color: var(--text); }
 
-#modal-form {
+#modal-form, .modal-body {
   padding: 0 28px 28px;
 }
 
@@ -445,10 +445,19 @@ tbody tr:hover { background: rgba(56,189,248,0.03); }
   header { padding: 14px 16px; }
   main { padding: 20px 16px; }
   .fields-row { grid-template-columns: 1fr; }
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .search-input, .select-input, .toolbar button { width: 100%; min-width: 0; }
+  table { white-space: nowrap; }
+  .modal-header, #modal-form, .modal-body { padding-left: 20px; padding-right: 20px; }
+  .modal-header { padding-top: 20px; }
 }
 
 @media (max-width: 480px) {
   .stats-grid { grid-template-columns: 1fr; }
   table { font-size: 13px; }
   th, td { padding: 10px 12px; }
+  .logo { font-size: 15px; }
+  header { flex-wrap: wrap; gap: 10px; }
+  .modal-footer { flex-wrap: wrap; }
+  .modal-footer button { flex: 1; }
 }

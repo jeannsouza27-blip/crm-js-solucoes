@@ -210,31 +210,33 @@
         <h3>Relatório Mensal de Pagamentos</h3>
         <button class="modal-close" onclick="fecharRelatorio()">✕</button>
       </div>
-      <div class="field">
-        <label>Mês de referência</label>
-        <input type="month" id="relatorio-mes">
-      </div>
-      <div class="total-preview" style="display:flex;flex-direction:column;margin-bottom:16px">
-        <span style="font-size:12px;color:var(--text-secondary)">Total recebido no mês</span>
-        <span id="relatorio-total" style="font-size:18px;font-weight:600;color:var(--accent)">R$ 0,00</span>
-      </div>
-      <div class="table-wrapper">
-        <table id="relatorio-tabela">
-          <thead>
-            <tr>
-              <th>Empresa</th>
-              <th>Valor Recebido</th>
-              <th>Confirmado em</th>
-            </tr>
-          </thead>
-          <tbody id="relatorio-tabela-body"></tbody>
-        </table>
-        <div id="relatorio-vazio" class="empty-state" style="display:none">
-          <p>Nenhum pagamento confirmado neste mês.</p>
+      <div class="modal-body">
+        <div class="field">
+          <label>Mês de referência</label>
+          <input type="month" id="relatorio-mes">
         </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-outline" onclick="fecharRelatorio()">Fechar</button>
+        <div class="total-preview" style="display:flex;flex-direction:column;margin-bottom:16px">
+          <span style="font-size:12px;color:var(--text-secondary)">Total recebido no mês</span>
+          <span id="relatorio-total" style="font-size:18px;font-weight:600;color:var(--accent)">R$ 0,00</span>
+        </div>
+        <div class="table-wrapper">
+          <table id="relatorio-tabela">
+            <thead>
+              <tr>
+                <th>Empresa</th>
+                <th>Valor Recebido</th>
+                <th>Confirmado em</th>
+              </tr>
+            </thead>
+            <tbody id="relatorio-tabela-body"></tbody>
+          </table>
+          <div id="relatorio-vazio" class="empty-state" style="display:none">
+            <p>Nenhum pagamento confirmado neste mês.</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-outline" onclick="fecharRelatorio()">Fechar</button>
+        </div>
       </div>
     </div>
   </div>

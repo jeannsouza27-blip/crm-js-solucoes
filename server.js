@@ -65,6 +65,12 @@ function sincronizarPagamento(clienteId, confirmado, valorTotal) {
   }
 }
 
+// Backfill: clientes já marcados como confirmados antes de existir o histórico
+// não tinham registro nenhum. Garante o registro do mês corrente para eles.
+for (const c of db.prepare('SELECT id, valor_mensais, valor_extra FROM clientes WHERE pagamento_confirmado = 1').all()) {
+  sincronizarPagamento(c.id, true, (c.valor_mensais || 0) + (c.valor_extra || 0));
+}
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
