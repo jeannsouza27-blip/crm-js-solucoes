@@ -159,4 +159,4 @@ app.delete('/api/clientes/:id', auth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.listen(PORT, () => console.log(`CRM JS Soluções rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(`CRM The Carvalhos Barbearia rodando na porta ${PORT}`));
