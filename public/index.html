@@ -35,69 +35,184 @@
 
   <!-- APP -->
   <div id="app" style="display:none">
-    <header>
-      <div class="logo"><span class="logo-js">JS</span> Js Soluções <span class="crm-badge">CRM</span></div>
-      <button id="logout-btn" class="btn-outline">Sair</button>
-    </header>
 
-    <main>
-      <!-- STATS -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <p class="stat-label">Total de Clientes</p>
-          <p class="stat-value" id="stat-total">0</p>
-        </div>
-        <div class="stat-card">
-          <p class="stat-label">Receita de Serviços</p>
-          <p class="stat-value" id="stat-servicos">R$ 0</p>
-        </div>
-        <div class="stat-card">
-          <p class="stat-label">Mensais a Receber</p>
-          <p class="stat-value" id="stat-mensais">R$ 0</p>
-        </div>
-        <div class="stat-card">
-          <p class="stat-label">Clientes Ativos</p>
-          <p class="stat-value" id="stat-ativos">0</p>
-        </div>
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-logo">
+        <span class="logo-js">JS</span><span class="sidebar-logo-text">Js Soluções</span>
       </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="dashboard" title="Dashboard">
+          <span class="nav-icon">📊</span><span class="nav-text">Dashboard</span>
+        </button>
+        <button class="nav-item" data-view="clientes" title="Clientes">
+          <span class="nav-icon">👥</span><span class="nav-text">Clientes</span>
+        </button>
+        <button class="nav-item" data-view="pipeline" title="Pipeline">
+          <span class="nav-icon">🔀</span><span class="nav-text">Pipeline</span>
+        </button>
+        <button class="nav-item" data-view="financeiro" title="Financeiro">
+          <span class="nav-icon">💰</span><span class="nav-text">Financeiro</span>
+        </button>
+        <button class="nav-item" data-view="servicos" title="Serviços">
+          <span class="nav-icon">🛠️</span><span class="nav-text">Serviços</span>
+        </button>
+        <button class="nav-item" data-view="relatorios" title="Relatórios">
+          <span class="nav-icon">📈</span><span class="nav-text">Relatórios</span>
+        </button>
+        <button class="nav-item" data-view="configuracoes" title="Configurações">
+          <span class="nav-icon">⚙️</span><span class="nav-text">Configurações</span>
+        </button>
+      </nav>
+      <button id="sidebar-collapse-btn" class="sidebar-collapse-btn" title="Colapsar menu">‹</button>
+    </aside>
 
-      <!-- TOOLBAR -->
-      <div class="toolbar">
-        <input type="text" id="busca" placeholder="Buscar empresa..." class="search-input">
-        <select id="filtro-status" class="select-input">
-          <option value="">Todos os status</option>
-          <option value="ativo">Ativo</option>
-          <option value="concluido">Concluído</option>
-          <option value="pendente">Pendente</option>
-        </select>
-        <button class="btn-outline" id="btn-relatorio">📊 Relatório Mensal</button>
-        <button class="btn-primary" id="btn-novo">+ Novo Cliente</button>
-      </div>
+    <div id="sidebar-overlay"></div>
 
-      <!-- TABELA -->
-      <div class="table-wrapper">
-        <table id="tabela">
-          <thead>
-            <tr>
-              <th>Empresa / Contato</th>
-              <th>Telefone</th>
-              <th>Valor do Serviço</th>
-              <th>Mensais</th>
-              <th>Vencimento</th>
-              <th>Pagamento</th>
-              <th>Status</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="tabela-body">
-          </tbody>
-        </table>
-        <div id="tabela-vazia" class="empty-state" style="display:none">
-          <p>Nenhum cliente cadastrado ainda.</p>
-          <button class="btn-primary" onclick="abrirModal()">+ Adicionar primeiro cliente</button>
+    <div class="app-content">
+      <header>
+        <div class="header-left">
+          <button id="mobile-menu-btn" class="icon-btn" title="Menu">☰</button>
+          <h1 id="breadcrumb" class="breadcrumb">Dashboard</h1>
         </div>
-      </div>
-    </main>
+        <div class="header-search">
+          <input type="text" id="busca-global" placeholder="Buscar clientes...">
+        </div>
+        <div class="header-right">
+          <div class="dropdown-wrap">
+            <button id="notif-btn" class="icon-btn" title="Notificações">
+              🔔<span id="notif-badge" class="notif-badge" style="display:none">0</span>
+            </button>
+            <div id="notif-dropdown" class="dropdown-panel" style="display:none">
+              <div class="dropdown-header">Notificações</div>
+              <div id="notif-list" class="dropdown-list"></div>
+            </div>
+          </div>
+          <div class="dropdown-wrap">
+            <button id="avatar-btn" class="avatar-btn" title="Conta">👤</button>
+            <div id="avatar-dropdown" class="dropdown-panel dropdown-panel-right" style="display:none">
+              <button class="dropdown-item" data-view="configuracoes">Perfil</button>
+              <button class="dropdown-item" id="logout-btn">Sair</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main>
+
+        <!-- ===== DASHBOARD ===== -->
+        <section id="view-dashboard" class="view">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <p class="stat-label">Total de Clientes</p>
+              <p class="stat-value" id="stat-total">0</p>
+            </div>
+            <div class="stat-card">
+              <p class="stat-label">Receita de Serviços</p>
+              <p class="stat-value" id="stat-servicos">R$ 0</p>
+            </div>
+            <div class="stat-card">
+              <p class="stat-label">Mensais a Receber</p>
+              <p class="stat-value" id="stat-mensais">R$ 0</p>
+            </div>
+            <div class="stat-card">
+              <p class="stat-label">Clientes Ativos</p>
+              <p class="stat-value" id="stat-ativos">0</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== CLIENTES ===== -->
+        <section id="view-clientes" class="view" style="display:none">
+          <div class="toolbar">
+            <input type="text" id="busca" placeholder="Buscar empresa..." class="search-input">
+            <select id="filtro-status" class="select-input">
+              <option value="">Todos os status</option>
+              <option value="pendente">Em negociação</option>
+              <option value="ativo">Ativo</option>
+              <option value="pausado">Pausado</option>
+              <option value="cancelado">Cancelado</option>
+              <option value="concluido">Concluído</option>
+            </select>
+            <select id="filtro-segmento" class="select-input">
+              <option value="">Todos os segmentos</option>
+              <option value="Imobiliária">Imobiliária</option>
+              <option value="Indústria">Indústria</option>
+              <option value="Comércio">Comércio</option>
+              <option value="Saúde">Saúde</option>
+              <option value="Educação">Educação</option>
+              <option value="Tech">Tech</option>
+              <option value="Outro">Outro</option>
+            </select>
+            <select id="filtro-pagamento" class="select-input">
+              <option value="">Todas as formas de pgto.</option>
+              <option value="Pix">Pix</option>
+              <option value="Boleto">Boleto</option>
+              <option value="Cartão">Cartão</option>
+              <option value="Transferência">Transferência</option>
+            </select>
+            <button class="btn-outline" id="btn-relatorio">📊 Relatório Mensal</button>
+            <button class="btn-primary" id="btn-novo">+ Novo Cliente</button>
+          </div>
+
+          <div class="table-wrapper">
+            <table id="tabela">
+              <thead>
+                <tr>
+                  <th class="sortable" data-sort="nome_empresa">Empresa / Contato<span class="sort-arrow"></span></th>
+                  <th>Telefone</th>
+                  <th class="sortable" data-sort="valor_servico">Valor do Serviço<span class="sort-arrow"></span></th>
+                  <th class="sortable" data-sort="mensais_total">Mensais<span class="sort-arrow"></span></th>
+                  <th class="sortable" data-sort="data_vencimento">Vencimento<span class="sort-arrow"></span></th>
+                  <th>Pagamento</th>
+                  <th class="sortable" data-sort="status">Status<span class="sort-arrow"></span></th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabela-body">
+              </tbody>
+            </table>
+            <div id="tabela-vazia" class="empty-state" style="display:none">
+              <p>Nenhum cliente encontrado.</p>
+              <button class="btn-primary" onclick="abrirModal()">+ Adicionar primeiro cliente</button>
+            </div>
+          </div>
+
+          <div id="paginacao" class="paginacao">
+            <div class="paginacao-tamanho">
+              <label for="pagina-tamanho">Por página</label>
+              <select id="pagina-tamanho" class="select-input">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+            <div class="paginacao-controles">
+              <button class="btn-outline" id="pagina-anterior">‹ Anterior</button>
+              <span id="pagina-info">Página 1 de 1</span>
+              <button class="btn-outline" id="pagina-proxima">Próxima ›</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== PLACEHOLDERS (fases futuras) ===== -->
+        <section id="view-pipeline" class="view" style="display:none">
+          <div class="empty-state"><p>🔀 Pipeline de Vendas — em breve.</p></div>
+        </section>
+        <section id="view-financeiro" class="view" style="display:none">
+          <div class="empty-state"><p>💰 Módulo Financeiro — em breve.</p></div>
+        </section>
+        <section id="view-servicos" class="view" style="display:none">
+          <div class="empty-state"><p>🛠️ Catálogo de Serviços — em breve.</p></div>
+        </section>
+        <section id="view-relatorios" class="view" style="display:none">
+          <div class="empty-state"><p>📈 Relatórios e Analytics — em breve.</p></div>
+        </section>
+        <section id="view-configuracoes" class="view" style="display:none">
+          <div class="empty-state"><p>⚙️ Configurações — em breve.</p></div>
+        </section>
+
+      </main>
+    </div>
   </div>
 
   <!-- MODAL -->
@@ -109,14 +224,86 @@
       </div>
       <form id="modal-form">
         <input type="hidden" id="edit-id">
+
+        <h4 class="form-section-title">Dados da Empresa</h4>
         <div class="fields-row">
           <div class="field">
             <label>Nome da Empresa <span class="required">*</span></label>
             <input type="text" id="f-nome" required placeholder="Ex: Empresa ABC Ltda">
           </div>
           <div class="field">
+            <label>CNPJ / CPF</label>
+            <input type="text" id="f-cnpj" placeholder="00.000.000/0000-00">
+            <span class="field-hint" id="f-cnpj-hint"></span>
+          </div>
+        </div>
+        <div class="fields-row">
+          <div class="field">
+            <label>Segmento</label>
+            <select id="f-segmento">
+              <option value="">Selecione...</option>
+              <option value="Imobiliária">Imobiliária</option>
+              <option value="Indústria">Indústria</option>
+              <option value="Comércio">Comércio</option>
+              <option value="Saúde">Saúde</option>
+              <option value="Educação">Educação</option>
+              <option value="Tech">Tech</option>
+              <option value="Outro">Outro</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Porte</label>
+            <select id="f-porte">
+              <option value="">Selecione...</option>
+              <option value="MEI">MEI</option>
+              <option value="ME">ME</option>
+              <option value="EPP">EPP</option>
+              <option value="Médio">Médio</option>
+              <option value="Grande">Grande</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Website</label>
+          <input type="url" id="f-website" placeholder="https://...">
+        </div>
+        <div class="fields-row">
+          <div class="field">
+            <label>CEP</label>
+            <input type="text" id="f-cep" placeholder="00000-000">
+          </div>
+          <div class="field">
+            <label>Endereço</label>
+            <input type="text" id="f-endereco" placeholder="Rua, Av...">
+          </div>
+        </div>
+        <div class="fields-row fields-row-3">
+          <div class="field">
+            <label>Número</label>
+            <input type="text" id="f-numero" placeholder="Nº">
+          </div>
+          <div class="field">
+            <label>Bairro</label>
+            <input type="text" id="f-bairro" placeholder="Bairro">
+          </div>
+          <div class="field">
+            <label>Cidade / UF</label>
+            <div class="cidade-uf-row">
+              <input type="text" id="f-cidade" placeholder="Cidade">
+              <input type="text" id="f-uf" placeholder="UF" maxlength="2">
+            </div>
+          </div>
+        </div>
+
+        <h4 class="form-section-title">Contato Principal</h4>
+        <div class="fields-row">
+          <div class="field">
             <label>Nome do Contato</label>
             <input type="text" id="f-contato" placeholder="Ex: João Silva">
+          </div>
+          <div class="field">
+            <label>Cargo / Função</label>
+            <input type="text" id="f-cargo" placeholder="Ex: Diretor">
           </div>
         </div>
         <div class="fields-row">
@@ -125,11 +312,38 @@
             <input type="tel" id="f-telefone" placeholder="(27) 99999-9999">
           </div>
           <div class="field">
+            <label>WhatsApp</label>
+            <div class="whatsapp-row">
+              <input type="tel" id="f-whatsapp" placeholder="(27) 99999-9999">
+              <a href="#" id="f-whatsapp-link" class="btn-icon" target="_blank" rel="noopener" style="display:none" title="Abrir no WhatsApp">💬</a>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>E-mail</label>
+          <input type="email" id="f-email" placeholder="contato@empresa.com">
+        </div>
+
+        <h4 class="form-section-title">Dados do Serviço</h4>
+        <div class="fields-row">
+          <div class="field">
             <label>Status</label>
             <select id="f-status">
+              <option value="pendente">Em negociação</option>
               <option value="ativo">Ativo</option>
-              <option value="pendente">Pendente</option>
+              <option value="pausado">Pausado</option>
+              <option value="cancelado">Cancelado</option>
               <option value="concluido">Concluído</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Forma de Pagamento</label>
+            <select id="f-forma-pagamento">
+              <option value="">Selecione...</option>
+              <option value="Pix">Pix</option>
+              <option value="Boleto">Boleto</option>
+              <option value="Cartão">Cartão</option>
+              <option value="Transferência">Transferência</option>
             </select>
           </div>
         </div>
@@ -175,10 +389,13 @@
             Pagamento confirmado neste ciclo
           </label>
         </div>
+
+        <h4 class="form-section-title">Observações</h4>
         <div class="field">
           <label>Observações</label>
           <textarea id="f-obs" rows="3" placeholder="Notas sobre o serviço..."></textarea>
         </div>
+
         <div id="modal-error" class="alert-error" style="display:none"></div>
         <div class="modal-footer">
           <button type="button" class="btn-outline" onclick="fecharModal()">Cancelar</button>
