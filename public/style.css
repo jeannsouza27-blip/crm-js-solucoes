@@ -255,12 +255,14 @@ header {
   top: calc(100% + 8px);
   left: 0;
   min-width: 260px;
+  max-width: calc(100vw - 24px);
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 12px 32px rgba(0,0,0,0.4);
   z-index: 100;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .dropdown-panel-right { left: auto; right: 0; }
