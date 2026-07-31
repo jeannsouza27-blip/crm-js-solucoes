@@ -278,10 +278,19 @@ header {
 .dropdown-list { max-height: 320px; overflow-y: auto; }
 
 .dropdown-list-item {
-  padding: 12px 16px;
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
   border-bottom: 1px solid rgba(51,65,85,0.5);
+  padding: 12px 16px;
+  font-family: 'Poppins', sans-serif;
+  cursor: pointer;
+  transition: 0.2s;
 }
 .dropdown-list-item:last-child { border-bottom: none; }
+.dropdown-list-item:hover { background: rgba(56,189,248,0.08); }
 
 .dropdown-empty {
   padding: 20px 16px;

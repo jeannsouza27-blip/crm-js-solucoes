@@ -92,10 +92,27 @@ function fecharDropdowns() {
 }
 
 // ===== NOTIFICAÇÕES (vencimentos próximos/atrasados) =====
+function chaveNotificacao(c) {
+  return `${c.id}|${c.data_vencimento}`;
+}
+
+function getNotificacoesLidas() {
+  try { return new Set(JSON.parse(localStorage.getItem('crm_notif_lidas') || '[]')); }
+  catch { return new Set(); }
+}
+
+function marcarNotificacaoLida(c) {
+  const lidas = getNotificacoesLidas();
+  lidas.add(chaveNotificacao(c));
+  localStorage.setItem('crm_notif_lidas', JSON.stringify([...lidas]));
+}
+
 function calcularNotificacoes() {
+  const lidas = getNotificacoesLidas();
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   return clientes
     .filter(c => c.data_vencimento && !c.pagamento_confirmado)
+    .filter(c => !lidas.has(chaveNotificacao(c)))
     .filter(c => {
       const venc = new Date(c.data_vencimento + 'T00:00:00');
       const diff = Math.ceil((venc - hoje) / 86400000);
@@ -126,11 +143,20 @@ function atualizarNotificacoes() {
     const diff = Math.ceil((venc - hoje) / 86400000);
     const situacao = diff < 0 ? `Atrasado há ${Math.abs(diff)} dia(s)` : diff === 0 ? 'Vence hoje' : `Vence em ${diff} dia(s)`;
     return `
-      <div class="dropdown-list-item">
+      <button type="button" class="dropdown-list-item" data-notif-id="${c.id}">
         <div class="nome-empresa">${esc(c.nome_empresa)}</div>
         <div style="font-size:12px;color:${vencimentoCor(c.data_vencimento)}">${situacao} — ${formatData(c.data_vencimento)}</div>
-      </div>`;
+      </button>`;
   }).join('');
+}
+
+function abrirNotificacao(id) {
+  const cliente = clientes.find(c => c.id === id);
+  if (!cliente) return;
+  marcarNotificacaoLida(cliente);
+  fecharDropdowns();
+  atualizarNotificacoes();
+  abrirModal(cliente.id);
 }
 
 // ===== CLIENTES =====
@@ -643,6 +669,11 @@ document.getElementById('sidebar-overlay').addEventListener('click', fecharSideb
 document.getElementById('notif-btn').addEventListener('click', (e) => {
   e.stopPropagation();
   toggleDropdown('notif-dropdown');
+});
+document.getElementById('notif-list').addEventListener('click', (e) => {
+  const item = e.target.closest('[data-notif-id]');
+  if (!item) return;
+  abrirNotificacao(parseInt(item.dataset.notifId, 10));
 });
 document.getElementById('avatar-btn').addEventListener('click', (e) => {
   e.stopPropagation();
