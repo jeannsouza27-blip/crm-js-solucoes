@@ -2,6 +2,7 @@ const express = require('express');
 const Database = require('better-sqlite3');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -69,6 +70,59 @@ if (!colsPagamentos.includes('forma_pagamento')) db.exec("ALTER TABLE pagamentos
 if (!colsPagamentos.includes('comprovante'))     db.exec("ALTER TABLE pagamentos ADD COLUMN comprovante TEXT DEFAULT ''");
 if (!colsPagamentos.includes('data_pagamento'))  db.exec('ALTER TABLE pagamentos ADD COLUMN data_pagamento TEXT');
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS servicos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    descricao TEXT DEFAULT '',
+    valor REAL DEFAULT 0,
+    criado_em TEXT DEFAULT (datetime('now', 'localtime'))
+  )
+`);
+
+// Catálogo inicial: deixa "Agente de IA" já cadastrado como exemplo; o catálogo
+// fica aberto para incluir quantos outros serviços forem necessários depois.
+if (db.prepare('SELECT COUNT(*) AS n FROM servicos').get().n === 0) {
+  db.prepare('INSERT INTO servicos (nome, descricao, valor) VALUES (?, ?, ?)')
+    .run('Agente de IA', 'Assistente virtual / chatbot para atendimento automatizado.', 0);
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS config (
+    chave TEXT PRIMARY KEY,
+    valor TEXT
+  )
+`);
+
+function getConfig(chave) {
+  const row = db.prepare('SELECT valor FROM config WHERE chave=?').get(chave);
+  return row ? row.valor : null;
+}
+
+function setConfig(chave, valor) {
+  db.prepare(`
+    INSERT INTO config (chave, valor) VALUES (?, ?)
+    ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor
+  `).run(chave, valor);
+}
+
+function usuarioAtual() {
+  return getConfig('admin_usuario') || ADMIN_USER;
+}
+
+function hashSenha(senha, salt) {
+  return crypto.scryptSync(senha, salt, 64).toString('hex');
+}
+
+// Se a senha nunca foi trocada pela UI, cai no ADMIN_PASS vindo do ambiente
+// (mesmo comportamento de antes, para não quebrar instalações já em produção).
+function verificarSenha(senha) {
+  const salt = getConfig('admin_senha_salt');
+  const hash = getConfig('admin_senha_hash');
+  if (!salt || !hash) return senha === ADMIN_PASS;
+  return hashSenha(senha, salt) === hash;
+}
+
 function mesAtual() {
   return db.prepare("SELECT strftime('%Y-%m', 'now', 'localtime') AS mes").get().mes;
 }
@@ -131,7 +185,7 @@ function auth(req, res, next) {
 
 app.post('/api/login', (req, res) => {
   const { usuario, senha } = req.body || {};
-  if (usuario === ADMIN_USER && senha === ADMIN_PASS) {
+  if (usuario === usuarioAtual() && verificarSenha(senha)) {
     const token = jwt.sign({ usuario }, JWT_SECRET, { expiresIn: '8h' });
     return res.json({ token });
   }
@@ -316,6 +370,65 @@ app.get('/api/financeiro', auth, (req, res) => {
 app.delete('/api/clientes/:id', auth, (req, res) => {
   db.prepare('DELETE FROM pagamentos WHERE cliente_id = ?').run(req.params.id);
   db.prepare('DELETE FROM clientes WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ===== SERVIÇOS (catálogo) =====
+app.get('/api/servicos', auth, (req, res) => {
+  res.json(db.prepare('SELECT * FROM servicos ORDER BY nome').all());
+});
+
+app.post('/api/servicos', auth, (req, res) => {
+  const { nome, descricao, valor } = req.body || {};
+  if (!nome) return res.status(400).json({ error: 'Nome do serviço obrigatório' });
+  const r = db.prepare('INSERT INTO servicos (nome, descricao, valor) VALUES (?, ?, ?)')
+    .run(nome, descricao || '', Number(valor) || 0);
+  res.status(201).json(db.prepare('SELECT * FROM servicos WHERE id = ?').get(r.lastInsertRowid));
+});
+
+app.put('/api/servicos/:id', auth, (req, res) => {
+  const { nome, descricao, valor } = req.body || {};
+  if (!nome) return res.status(400).json({ error: 'Nome do serviço obrigatório' });
+  db.prepare('UPDATE servicos SET nome=?, descricao=?, valor=? WHERE id=?')
+    .run(nome, descricao || '', Number(valor) || 0, req.params.id);
+  res.json(db.prepare('SELECT * FROM servicos WHERE id = ?').get(req.params.id));
+});
+
+app.delete('/api/servicos/:id', auth, (req, res) => {
+  db.prepare('DELETE FROM servicos WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ===== CONFIGURAÇÕES =====
+// Só o nome da empresa, sem exigir login — usado para a marca na tela de login.
+app.get('/api/config/publico', (req, res) => {
+  res.json({ empresa_nome: getConfig('empresa_nome') || 'Js Soluções' });
+});
+
+app.get('/api/config', auth, (req, res) => {
+  res.json({
+    empresa_nome: getConfig('empresa_nome') || 'Js Soluções',
+    usuario_atual: usuarioAtual()
+  });
+});
+
+app.put('/api/config', auth, (req, res) => {
+  const { empresa_nome } = req.body || {};
+  if (!empresa_nome || !empresa_nome.trim()) return res.status(400).json({ error: 'Nome da empresa obrigatório' });
+  setConfig('empresa_nome', empresa_nome.trim());
+  res.json({ ok: true });
+});
+
+app.post('/api/config/senha', auth, (req, res) => {
+  const { senha_atual, novo_usuario, nova_senha } = req.body || {};
+  if (!verificarSenha(senha_atual || '')) return res.status(401).json({ error: 'Senha atual incorreta' });
+  if (!nova_senha || nova_senha.length < 6) return res.status(400).json({ error: 'A nova senha precisa ter ao menos 6 caracteres' });
+
+  const salt = crypto.randomBytes(16).toString('hex');
+  setConfig('admin_senha_salt', salt);
+  setConfig('admin_senha_hash', hashSenha(nova_senha, salt));
+  if (novo_usuario && novo_usuario.trim()) setConfig('admin_usuario', novo_usuario.trim());
+
   res.json({ ok: true });
 });
 

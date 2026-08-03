@@ -532,7 +532,7 @@ th.sortable:hover { color: var(--text); }
 }
 
 /* ===== MODAL ===== */
-#modal-overlay, #confirm-overlay, #relatorio-overlay, #pagar-overlay {
+#modal-overlay, #confirm-overlay, #relatorio-overlay, #pagar-overlay, #servico-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.65);

@@ -1,7 +1,8 @@
 const API = '';
 let token = localStorage.getItem('crm_token') || '';
 let clientes = [];
-let deletandoId = null;
+let servicos = [];
+let confirmCallback = null;
 let paginaAtual = 1;
 let tamanhoPagina = 10;
 let ordenacao = { campo: null, dir: 1 };
@@ -85,6 +86,8 @@ function mudarView(view) {
   if (view === 'financeiro') carregarFinanceiro();
   if (view === 'pipeline') renderizarPipeline();
   if (view === 'relatorios') carregarRelatorios();
+  if (view === 'servicos') carregarServicos();
+  if (view === 'configuracoes') carregarConfiguracoes();
 }
 
 function fecharSidebarMobile() {
@@ -718,22 +721,174 @@ function renderizarTopClientes(topClientes) {
     </tr>`).join('');
 }
 
-// ===== DELETE =====
-function confirmarDelete(id) {
-  deletandoId = id;
+// ===== SERVIÇOS (CATÁLOGO) =====
+async function carregarServicos() {
+  servicos = await api('GET', '/api/servicos') || [];
+  renderizarServicos();
+}
+
+function renderizarServicos() {
+  const busca = document.getElementById('servico-busca').value.toLowerCase();
+  const lista = servicos.filter(s => !busca || s.nome.toLowerCase().includes(busca));
+  const tbody = document.getElementById('servicos-tabela-body');
+  const tabela = document.getElementById('servicos-tabela');
+  const vazia = document.getElementById('servicos-tabela-vazia');
+
+  if (lista.length === 0) {
+    tbody.innerHTML = '';
+    tabela.style.display = 'none';
+    vazia.style.display = 'block';
+    return;
+  }
+
+  tabela.style.display = 'table';
+  vazia.style.display = 'none';
+  tbody.innerHTML = lista.map(s => `
+    <tr>
+      <td class="nome-empresa">${esc(s.nome)}</td>
+      <td>${s.descricao ? esc(s.descricao) : '<span style="color:var(--text-secondary)">—</span>'}</td>
+      <td class="valor">${formatBRL(s.valor)}</td>
+      <td>
+        <div class="acoes">
+          <button class="btn-icon" onclick="abrirModalServico(${s.id})">✏️ Editar</button>
+          <button class="btn-icon del" onclick="confirmarDeleteServico(${s.id})">🗑️</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function abrirModalServico(id) {
+  const s = id ? servicos.find(x => x.id === id) : null;
+  document.getElementById('servico-modal-titulo').textContent = s ? 'Editar Serviço' : 'Novo Serviço';
+  document.getElementById('servico-edit-id').value = s ? s.id : '';
+  document.getElementById('servico-nome').value = s ? s.nome : '';
+  document.getElementById('servico-descricao').value = s ? (s.descricao || '') : '';
+  document.getElementById('servico-valor').value = s ? s.valor : '';
+  document.getElementById('servico-error').style.display = 'none';
+  document.getElementById('servico-overlay').style.display = 'flex';
+  document.getElementById('servico-nome').focus();
+}
+
+function fecharModalServico() {
+  document.getElementById('servico-overlay').style.display = 'none';
+}
+
+async function salvarServico(e) {
+  e.preventDefault();
+  const id = document.getElementById('servico-edit-id').value;
+  const erro = document.getElementById('servico-error');
+  const body = {
+    nome: document.getElementById('servico-nome').value.trim(),
+    descricao: document.getElementById('servico-descricao').value.trim(),
+    valor: parseFloat(document.getElementById('servico-valor').value) || 0
+  };
+  try {
+    const result = id
+      ? await api('PUT', `/api/servicos/${id}`, body)
+      : await api('POST', '/api/servicos', body);
+    if (!result || result.error) throw new Error((result && result.error) || 'Erro ao salvar serviço');
+    fecharModalServico();
+    toast('Serviço salvo com sucesso.', 'sucesso');
+    await carregarServicos();
+  } catch (err) {
+    erro.textContent = err.message;
+    erro.style.display = 'block';
+  }
+}
+
+function confirmarDeleteServico(id) {
+  confirmarAcao('Tem certeza que deseja excluir este serviço? Esta ação não pode ser desfeita.', async () => {
+    await api('DELETE', `/api/servicos/${id}`);
+    await carregarServicos();
+  });
+}
+
+// ===== CONFIGURAÇÕES =====
+async function carregarConfiguracoes() {
+  const data = await api('GET', '/api/config');
+  if (!data) return;
+  document.getElementById('config-empresa-nome').value = data.empresa_nome || '';
+  document.getElementById('config-usuario-atual').value = data.usuario_atual || '';
+}
+
+async function carregarBrandingPublico() {
+  try {
+    const r = await fetch(`${API}/api/config/publico`);
+    const data = await r.json();
+    const nome = (data && data.empresa_nome) || 'Js Soluções';
+    document.getElementById('login-empresa-nome').textContent = nome;
+    document.getElementById('sidebar-empresa-nome').textContent = nome;
+  } catch (err) {
+    // marca padrão já está no HTML; falha aqui não deve travar o login
+  }
+}
+
+async function salvarDadosEmpresa(e) {
+  e.preventDefault();
+  const erro = document.getElementById('config-empresa-error');
+  const body = { empresa_nome: document.getElementById('config-empresa-nome').value.trim() };
+  const result = await api('PUT', '/api/config', body);
+  if (!result || result.error) {
+    erro.textContent = (result && result.error) || 'Erro ao salvar dados da empresa';
+    erro.style.display = 'block';
+    return;
+  }
+  erro.style.display = 'none';
+  toast('Dados da empresa atualizados.', 'sucesso');
+  await carregarBrandingPublico();
+}
+
+async function salvarSenha(e) {
+  e.preventDefault();
+  const erro = document.getElementById('config-senha-error');
+  const novaSenha = document.getElementById('config-nova-senha').value;
+  const confirmarSenha = document.getElementById('config-confirmar-senha').value;
+  if (novaSenha !== confirmarSenha) {
+    erro.textContent = 'A confirmação não confere com a nova senha.';
+    erro.style.display = 'block';
+    return;
+  }
+  const body = {
+    senha_atual: document.getElementById('config-senha-atual').value,
+    novo_usuario: document.getElementById('config-novo-usuario').value.trim(),
+    nova_senha: novaSenha
+  };
+  const result = await api('POST', '/api/config/senha', body);
+  if (!result || result.error) {
+    erro.textContent = (result && result.error) || 'Erro ao alterar senha';
+    erro.style.display = 'block';
+    return;
+  }
+  erro.style.display = 'none';
+  document.getElementById('config-senha-form').reset();
+  toast('Senha alterada com sucesso.', 'sucesso');
+  await carregarConfiguracoes();
+}
+
+// ===== CONFIRMAÇÃO GENÉRICA (exclusão de clientes ou serviços) =====
+function confirmarAcao(mensagem, acao) {
+  document.getElementById('confirm-texto').textContent = mensagem;
+  confirmCallback = acao;
   document.getElementById('confirm-overlay').style.display = 'flex';
 }
 
 function fecharConfirm() {
-  deletandoId = null;
+  confirmCallback = null;
   document.getElementById('confirm-overlay').style.display = 'none';
 }
 
-async function executarDelete() {
-  if (!deletandoId) return;
-  await api('DELETE', `/api/clientes/${deletandoId}`);
+async function executarConfirmacao() {
+  if (!confirmCallback) return;
+  const acao = confirmCallback;
   fecharConfirm();
-  await carregarClientes();
+  await acao();
+}
+
+function confirmarDelete(id) {
+  confirmarAcao('Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.', async () => {
+    await api('DELETE', `/api/clientes/${id}`);
+    await carregarClientes();
+  });
 }
 
 // ===== MÁSCARAS E VALIDAÇÃO =====
@@ -892,7 +1047,7 @@ document.getElementById('login-form').addEventListener('submit', login);
 document.getElementById('logout-btn').addEventListener('click', logout);
 document.getElementById('btn-novo').addEventListener('click', () => abrirModal());
 document.getElementById('modal-form').addEventListener('submit', salvarCliente);
-document.getElementById('confirm-delete-btn').addEventListener('click', executarDelete);
+document.getElementById('confirm-delete-btn').addEventListener('click', executarConfirmacao);
 
 document.getElementById('busca').addEventListener('input', () => { paginaAtual = 1; renderizarTabela(); });
 document.getElementById('filtro-status').addEventListener('change', () => { paginaAtual = 1; renderizarTabela(); });
@@ -1056,6 +1211,21 @@ document.getElementById('busca-global').addEventListener('input', (e) => {
   paginaAtual = 1;
   renderizarTabela();
 });
+
+// Serviços (catálogo)
+document.getElementById('btn-novo-servico').addEventListener('click', () => abrirModalServico());
+document.getElementById('servico-form').addEventListener('submit', salvarServico);
+document.getElementById('servico-busca').addEventListener('input', renderizarServicos);
+document.getElementById('servico-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('servico-overlay')) fecharModalServico();
+});
+
+// Configurações
+document.getElementById('config-empresa-form').addEventListener('submit', salvarDadosEmpresa);
+document.getElementById('config-senha-form').addEventListener('submit', salvarSenha);
+
+// Marca (nome da empresa) — carregada mesmo antes do login
+carregarBrandingPublico();
 
 // Iniciar se já tiver token
 if (token) iniciarApp();
