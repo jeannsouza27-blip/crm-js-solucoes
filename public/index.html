@@ -199,7 +199,91 @@
           <div class="empty-state"><p>🔀 Pipeline de Vendas — em breve.</p></div>
         </section>
         <section id="view-financeiro" class="view" style="display:none">
-          <div class="empty-state"><p>💰 Módulo Financeiro — em breve.</p></div>
+          <div class="toolbar">
+            <div class="field" style="margin-bottom:0">
+              <label style="margin-bottom:4px">Mês de referência</label>
+              <input type="month" id="fin-mes" class="select-input">
+            </div>
+            <div style="flex:1"></div>
+            <button class="btn-outline" id="fin-btn-exportar">⬇️ Exportar CSV</button>
+          </div>
+
+          <div class="stats-grid" id="fin-stats-grid">
+            <div class="stat-card">
+              <p class="stat-label">Receita Total do Mês</p>
+              <p class="stat-value" id="fin-stat-total">R$ 0</p>
+            </div>
+            <div class="stat-card">
+              <p class="stat-label">Recebido (Recorrente)</p>
+              <p class="stat-value" id="fin-stat-recebido">R$ 0</p>
+            </div>
+            <div class="stat-card">
+              <p class="stat-label">Receita de Projetos</p>
+              <p class="stat-value" id="fin-stat-projetos">R$ 0</p>
+            </div>
+            <div class="stat-card" id="fin-card-pendente" style="cursor:pointer">
+              <p class="stat-label">Total Pendente</p>
+              <p class="stat-value" id="fin-stat-pendente" style="color:#fbbf24">R$ 0</p>
+            </div>
+            <div class="stat-card" id="fin-card-atrasado" style="cursor:pointer">
+              <p class="stat-label">Total Atrasado</p>
+              <p class="stat-value" id="fin-stat-atrasado" style="color:#f87171">R$ 0</p>
+            </div>
+          </div>
+
+          <h4 class="form-section-title" style="margin-top:0">Cobranças em Aberto (ciclo atual)</h4>
+          <div class="toolbar">
+            <select id="fin-filtro-status" class="select-input">
+              <option value="">Todos os status</option>
+              <option value="pago">Pago</option>
+              <option value="pendente">Pendente</option>
+              <option value="atrasado">Atrasado</option>
+            </select>
+            <select id="fin-filtro-forma" class="select-input">
+              <option value="">Todas as formas de pgto.</option>
+              <option value="Pix">Pix</option>
+              <option value="Boleto">Boleto</option>
+              <option value="Cartão">Cartão</option>
+              <option value="Transferência">Transferência</option>
+            </select>
+          </div>
+          <div class="table-wrapper">
+            <table id="fin-tabela-cobrancas">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Valor</th>
+                  <th>Vencimento</th>
+                  <th>Status</th>
+                  <th>Forma de Pagamento</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="fin-cobrancas-body"></tbody>
+            </table>
+            <div id="fin-cobrancas-vazio" class="empty-state" style="display:none">
+              <p>Nenhuma cobrança recorrente encontrada.</p>
+            </div>
+          </div>
+
+          <h4 class="form-section-title">Histórico de Pagamentos do Mês</h4>
+          <div class="table-wrapper">
+            <table id="fin-tabela-historico">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Valor</th>
+                  <th>Forma de Pagamento</th>
+                  <th>Data do Pagamento</th>
+                  <th>Comprovante</th>
+                </tr>
+              </thead>
+              <tbody id="fin-historico-body"></tbody>
+            </table>
+            <div id="fin-historico-vazio" class="empty-state" style="display:none">
+              <p>Nenhum pagamento confirmado neste mês.</p>
+            </div>
+          </div>
         </section>
         <section id="view-servicos" class="view" style="display:none">
           <div class="empty-state"><p>🛠️ Catálogo de Serviços — em breve.</p></div>
@@ -457,6 +541,46 @@
       </div>
     </div>
   </div>
+
+  <!-- REGISTRAR PAGAMENTO -->
+  <div id="pagar-overlay" style="display:none">
+    <div class="modal small">
+      <div class="modal-header">
+        <h3>Registrar Pagamento</h3>
+        <button class="modal-close" onclick="fecharPagar()">✕</button>
+      </div>
+      <form id="pagar-form" class="modal-body">
+        <input type="hidden" id="pagar-cliente-id">
+        <p style="color:var(--text-secondary);margin-bottom:16px" id="pagar-cliente-nome"></p>
+        <div class="field">
+          <label>Forma de Pagamento</label>
+          <select id="pagar-forma">
+            <option value="">Selecione...</option>
+            <option value="Pix">Pix</option>
+            <option value="Boleto">Boleto</option>
+            <option value="Cartão">Cartão</option>
+            <option value="Transferência">Transferência</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Data do Pagamento</label>
+          <input type="date" id="pagar-data">
+        </div>
+        <div class="field">
+          <label>Comprovante (link ou observação, opcional)</label>
+          <input type="text" id="pagar-comprovante" placeholder="Ex: link do comprovante ou observação">
+        </div>
+        <div id="pagar-error" class="alert-error" style="display:none"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn-outline" onclick="fecharPagar()">Cancelar</button>
+          <button type="submit" class="btn-primary">Confirmar Pagamento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOASTS -->
+  <div id="toast-container"></div>
 
   <script src="app.js"></script>
 </body>

@@ -340,6 +340,8 @@ main {
 
 .stat-card:hover { border-color: var(--accent); }
 
+#fin-stats-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
 .stat-label {
   font-size: 13px;
   color: var(--text-secondary);
@@ -452,6 +454,7 @@ tbody tr:hover { background: rgba(56,189,248,0.03); }
 
 .badge-pagamento-ok { background: rgba(22,163,74,0.15); color: #4ade80; border: 1px solid rgba(22,163,74,0.3); }
 .badge-pagamento-pendente { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+.badge-pagamento-atrasado { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
 
 /* ===== TABELA — ORDENAÇÃO E PAGINAÇÃO ===== */
 th.sortable { cursor: pointer; user-select: none; }
@@ -495,8 +498,41 @@ th.sortable:hover { color: var(--text); }
 
 .empty-state p { margin-bottom: 20px; font-size: 15px; }
 
+/* ===== TOASTS ===== */
+#toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: calc(100vw - 40px);
+}
+
+.toast {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  color: var(--text);
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+  min-width: 240px;
+  animation: toast-in 0.2s ease;
+}
+
+.toast-sucesso { border-left-color: var(--green); }
+.toast-erro { border-left-color: var(--danger); }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 /* ===== MODAL ===== */
-#modal-overlay, #confirm-overlay, #relatorio-overlay {
+#modal-overlay, #confirm-overlay, #relatorio-overlay, #pagar-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.65);

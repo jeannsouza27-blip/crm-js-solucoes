@@ -64,16 +64,28 @@ db.exec(`
   )
 `);
 
+const colsPagamentos = db.prepare('PRAGMA table_info(pagamentos)').all().map(c => c.name);
+if (!colsPagamentos.includes('forma_pagamento')) db.exec("ALTER TABLE pagamentos ADD COLUMN forma_pagamento TEXT DEFAULT ''");
+if (!colsPagamentos.includes('comprovante'))     db.exec("ALTER TABLE pagamentos ADD COLUMN comprovante TEXT DEFAULT ''");
+if (!colsPagamentos.includes('data_pagamento'))  db.exec('ALTER TABLE pagamentos ADD COLUMN data_pagamento TEXT');
+
 function mesAtual() {
   return db.prepare("SELECT strftime('%Y-%m', 'now', 'localtime') AS mes").get().mes;
 }
 
+function hojeStr() {
+  return db.prepare("SELECT date('now', 'localtime') AS d").get().d;
+}
+
 // Registra/remove o pagamento do mês corrente conforme o checkbox "pagamento_confirmado"
-function sincronizarPagamento(clienteId, confirmado, valorTotal) {
+function sincronizarPagamento(clienteId, confirmado, valorTotal, formaPagamento, comprovante, dataPagamento) {
   const mes = mesAtual();
   const existente = db.prepare('SELECT id FROM pagamentos WHERE cliente_id=? AND mes_referencia=?').get(clienteId, mes);
   if (confirmado) {
-    if (!existente) db.prepare('INSERT INTO pagamentos (cliente_id, valor, mes_referencia) VALUES (?, ?, ?)').run(clienteId, valorTotal, mes);
+    if (!existente) {
+      db.prepare('INSERT INTO pagamentos (cliente_id, valor, mes_referencia, forma_pagamento, comprovante, data_pagamento) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(clienteId, valorTotal, mes, formaPagamento || '', comprovante || '', dataPagamento || hojeStr());
+    }
   } else if (existente) {
     db.prepare('DELETE FROM pagamentos WHERE id=?').run(existente.id);
   }
@@ -97,8 +109,8 @@ function avancarCicloSeConfirmado(estavaConfirmado, confirmadoAgora, dataVencime
 
 // Backfill: clientes já marcados como confirmados antes de existir o histórico
 // não tinham registro nenhum. Garante o registro do mês corrente para eles.
-for (const c of db.prepare('SELECT id, valor_mensais, valor_extra FROM clientes WHERE pagamento_confirmado = 1').all()) {
-  sincronizarPagamento(c.id, true, (c.valor_mensais || 0) + (c.valor_extra || 0));
+for (const c of db.prepare('SELECT id, valor_mensais, valor_extra, forma_pagamento FROM clientes WHERE pagamento_confirmado = 1').all()) {
+  sincronizarPagamento(c.id, true, (c.valor_mensais || 0) + (c.valor_extra || 0), c.forma_pagamento, '', null);
 }
 
 app.use(express.json());
@@ -139,7 +151,7 @@ app.post('/api/clientes', auth, (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', ciclo.dataVencimento, ciclo.pagamentoConfirmado, status || 'ativo', observacoes || '',
     cnpj_cpf || '', segmento || '', porte || '', website || '', cep || '', endereco || '', numero || '', bairro || '', cidade || '', uf || '', contato_cargo || '', whatsapp || '', email || '', forma_pagamento || '');
-  sincronizarPagamento(r.lastInsertRowid, !!pagamento_confirmado, (Number(valor_mensais) || 0) + (Number(req.body.valor_extra) || 0));
+  sincronizarPagamento(r.lastInsertRowid, !!pagamento_confirmado, (Number(valor_mensais) || 0) + (Number(req.body.valor_extra) || 0), forma_pagamento, '', null);
   res.status(201).json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(r.lastInsertRowid));
 });
 
@@ -156,8 +168,34 @@ app.put('/api/clientes/:id', auth, (req, res) => {
     WHERE id=?
   `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', ciclo.dataVencimento, ciclo.pagamentoConfirmado, status, observacoes || '',
     cnpj_cpf || '', segmento || '', porte || '', website || '', cep || '', endereco || '', numero || '', bairro || '', cidade || '', uf || '', contato_cargo || '', whatsapp || '', email || '', forma_pagamento || '', req.params.id);
-  sincronizarPagamento(Number(req.params.id), !!pagamento_confirmado, (Number(valor_mensais) || 0) + (Number(req.body.valor_extra) || 0));
+  sincronizarPagamento(Number(req.params.id), !!pagamento_confirmado, (Number(valor_mensais) || 0) + (Number(req.body.valor_extra) || 0), forma_pagamento, '', null);
   res.json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(req.params.id));
+});
+
+// Registro rápido de pagamento a partir do módulo Financeiro (sem precisar reenviar o formulário completo)
+app.post('/api/clientes/:id/pagar', auth, (req, res) => {
+  const cliente = db.prepare('SELECT * FROM clientes WHERE id=?').get(req.params.id);
+  if (!cliente) return res.status(404).json({ error: 'Cliente não encontrado' });
+
+  // pagamento_confirmado é resetado para 0 assim que o ciclo avança (ver avancarCicloSeConfirmado),
+  // então não serve para detectar clique duplicado — checamos se já existe registro no mês corrente.
+  const jaPagoEsteMes = db.prepare('SELECT id FROM pagamentos WHERE cliente_id=? AND mes_referencia=?').get(cliente.id, mesAtual());
+  if (jaPagoEsteMes) return res.status(400).json({ error: 'Pagamento já registrado neste mês' });
+
+  const { forma_pagamento, comprovante, data_pagamento } = req.body || {};
+  const formaFinal = forma_pagamento || cliente.forma_pagamento || '';
+  const valorTotal = (cliente.valor_mensais || 0) + (cliente.valor_extra || 0);
+  const ciclo = avancarCicloSeConfirmado(false, true, cliente.data_vencimento);
+
+  db.prepare('UPDATE clientes SET data_vencimento=?, pagamento_confirmado=?, forma_pagamento=? WHERE id=?')
+    .run(ciclo.dataVencimento, ciclo.pagamentoConfirmado, formaFinal, cliente.id);
+  sincronizarPagamento(cliente.id, true, valorTotal, formaFinal, comprovante || '', data_pagamento || null);
+
+  res.json(db.prepare('SELECT * FROM clientes WHERE id=?').get(cliente.id));
+});
+
+app.get('/api/clientes/:id/pagamentos', auth, (req, res) => {
+  res.json(db.prepare('SELECT * FROM pagamentos WHERE cliente_id=? ORDER BY mes_referencia DESC, data_pagamento DESC').all(req.params.id));
 });
 
 app.get('/api/relatorio', auth, (req, res) => {
@@ -171,6 +209,58 @@ app.get('/api/relatorio', auth, (req, res) => {
   `).all(mes);
   const total = pagamentos.reduce((s, p) => s + p.valor, 0);
   res.json({ mes, total, pagamentos });
+});
+
+// Visão consolidada do módulo Financeiro: cobranças do ciclo atual + histórico do mês selecionado
+app.get('/api/financeiro', auth, (req, res) => {
+  const mes = /^\d{4}-\d{2}$/.test(req.query.mes || '') ? req.query.mes : mesAtual();
+  const hoje = hojeStr();
+
+  const clientesRecorrentes = db.prepare('SELECT * FROM clientes WHERE valor_mensais > 0 OR valor_extra > 0').all();
+
+  const cobrancas = clientesRecorrentes.map(c => {
+    const valor = (c.valor_mensais || 0) + (c.valor_extra || 0);
+    let status = 'pendente';
+    if (c.pagamento_confirmado) status = 'pago';
+    else if (c.data_vencimento && c.data_vencimento < hoje) status = 'atrasado';
+    return {
+      id: c.id,
+      nome_empresa: c.nome_empresa,
+      valor,
+      data_vencimento: c.data_vencimento,
+      status,
+      forma_pagamento: c.forma_pagamento,
+      pagamento_confirmado: !!c.pagamento_confirmado
+    };
+  });
+
+  const total_pendente = cobrancas.filter(c => c.status !== 'pago').reduce((s, c) => s + c.valor, 0);
+  const total_atrasado = cobrancas.filter(c => c.status === 'atrasado').reduce((s, c) => s + c.valor, 0);
+
+  const historico = db.prepare(`
+    SELECT p.id, p.cliente_id, p.valor, p.mes_referencia, p.forma_pagamento, p.comprovante, p.data_pagamento, p.criado_em, c.nome_empresa
+    FROM pagamentos p JOIN clientes c ON c.id = p.cliente_id
+    WHERE p.mes_referencia = ?
+    ORDER BY p.data_pagamento DESC, c.nome_empresa
+  `).all(mes);
+
+  const total_recebido = historico.reduce((s, p) => s + p.valor, 0);
+  const receita_projetos = db.prepare(
+    "SELECT COALESCE(SUM(valor_servico), 0) AS total FROM clientes WHERE data_entrega LIKE ?"
+  ).get(mes + '%').total;
+
+  res.json({
+    mes,
+    overview: {
+      total_recebido,
+      receita_projetos_mes: receita_projetos,
+      receita_total_mes: total_recebido + receita_projetos,
+      total_pendente,
+      total_atrasado
+    },
+    cobrancas,
+    historico
+  });
 });
 
 app.delete('/api/clientes/:id', auth, (req, res) => {

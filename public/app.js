@@ -56,6 +56,16 @@ async function api(method, path, body) {
   return r.json();
 }
 
+// ===== TOASTS =====
+function toast(mensagem, tipo = 'info') {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast toast-${tipo}`;
+  el.textContent = mensagem;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
 // ===== NAVEGAÇÃO =====
 function viewLabel(view) {
   return {
@@ -72,6 +82,7 @@ function mudarView(view) {
   document.getElementById('breadcrumb').textContent = viewLabel(view);
   fecharSidebarMobile();
   if (view === 'clientes') renderizarTabela();
+  if (view === 'financeiro') carregarFinanceiro();
 }
 
 function fecharSidebarMobile() {
@@ -419,6 +430,150 @@ async function carregarRelatorio() {
   `).join('');
 }
 
+// ===== FINANCEIRO =====
+let financeiroData = null;
+
+function mesAtualStr() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+async function carregarFinanceiro() {
+  const mesInput = document.getElementById('fin-mes');
+  if (!mesInput.value) mesInput.value = mesAtualStr();
+  financeiroData = await api('GET', `/api/financeiro?mes=${mesInput.value}`);
+  renderizarFinanceiro();
+}
+
+function financeiroStatusLabel(s) {
+  return { pago: 'Pago', pendente: 'Pendente', atrasado: 'Atrasado' }[s] || s;
+}
+
+function getCobrancasFiltradas() {
+  if (!financeiroData) return [];
+  const status = document.getElementById('fin-filtro-status').value;
+  const forma = document.getElementById('fin-filtro-forma').value;
+  return financeiroData.cobrancas.filter(c => {
+    const matchStatus = !status || c.status === status;
+    const matchForma = !forma || c.forma_pagamento === forma;
+    return matchStatus && matchForma;
+  });
+}
+
+function renderizarFinanceiro() {
+  if (!financeiroData) return;
+  const ov = financeiroData.overview;
+  document.getElementById('fin-stat-total').textContent = formatBRL(ov.receita_total_mes);
+  document.getElementById('fin-stat-recebido').textContent = formatBRL(ov.total_recebido);
+  document.getElementById('fin-stat-projetos').textContent = formatBRL(ov.receita_projetos_mes);
+  document.getElementById('fin-stat-pendente').textContent = formatBRL(ov.total_pendente);
+  document.getElementById('fin-stat-atrasado').textContent = formatBRL(ov.total_atrasado);
+
+  const cobrancas = getCobrancasFiltradas();
+  const tbody = document.getElementById('fin-cobrancas-body');
+  const tabela = document.getElementById('fin-tabela-cobrancas');
+  const vazio = document.getElementById('fin-cobrancas-vazio');
+
+  if (cobrancas.length === 0) {
+    tbody.innerHTML = '';
+    tabela.style.display = 'none';
+    vazio.style.display = 'block';
+  } else {
+    tabela.style.display = 'table';
+    vazio.style.display = 'none';
+    tbody.innerHTML = cobrancas.map(c => `
+      <tr>
+        <td class="nome-empresa">${esc(c.nome_empresa)}</td>
+        <td class="valor">${formatBRL(c.valor)}</td>
+        <td style="color:${vencimentoCor(c.data_vencimento)}">${formatData(c.data_vencimento)}</td>
+        <td><span class="badge badge-pagamento-${c.status === 'pago' ? 'ok' : c.status}">${financeiroStatusLabel(c.status)}</span></td>
+        <td>${c.forma_pagamento ? esc(c.forma_pagamento) : '<span style="color:var(--text-secondary)">—</span>'}</td>
+        <td>
+          ${c.status !== 'pago'
+            ? `<button type="button" class="btn-icon" data-fin-pagar-id="${c.id}">💰 Registrar</button>`
+            : '<span style="color:var(--text-secondary)">—</span>'}
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  const historico = financeiroData.historico || [];
+  const tbodyH = document.getElementById('fin-historico-body');
+  const tabelaH = document.getElementById('fin-tabela-historico');
+  const vazioH = document.getElementById('fin-historico-vazio');
+
+  if (historico.length === 0) {
+    tbodyH.innerHTML = '';
+    tabelaH.style.display = 'none';
+    vazioH.style.display = 'block';
+  } else {
+    tabelaH.style.display = 'table';
+    vazioH.style.display = 'none';
+    tbodyH.innerHTML = historico.map(p => `
+      <tr>
+        <td class="nome-empresa">${esc(p.nome_empresa)}</td>
+        <td class="valor">${formatBRL(p.valor)}</td>
+        <td>${p.forma_pagamento ? esc(p.forma_pagamento) : '<span style="color:var(--text-secondary)">—</span>'}</td>
+        <td>${formatData(p.data_pagamento)}</td>
+        <td>${p.comprovante ? esc(p.comprovante) : '<span style="color:var(--text-secondary)">—</span>'}</td>
+      </tr>
+    `).join('');
+  }
+}
+
+function abrirPagar(id) {
+  const c = financeiroData && financeiroData.cobrancas.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('pagar-cliente-id').value = id;
+  document.getElementById('pagar-cliente-nome').textContent = c.nome_empresa;
+  document.getElementById('pagar-forma').value = c.forma_pagamento || '';
+  document.getElementById('pagar-data').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('pagar-comprovante').value = '';
+  document.getElementById('pagar-error').style.display = 'none';
+  document.getElementById('pagar-overlay').style.display = 'flex';
+}
+
+function fecharPagar() {
+  document.getElementById('pagar-overlay').style.display = 'none';
+}
+
+async function confirmarPagamento(e) {
+  e.preventDefault();
+  const id = document.getElementById('pagar-cliente-id').value;
+  const erro = document.getElementById('pagar-error');
+  const body = {
+    forma_pagamento: document.getElementById('pagar-forma').value,
+    data_pagamento: document.getElementById('pagar-data').value || null,
+    comprovante: document.getElementById('pagar-comprovante').value.trim()
+  };
+  try {
+    const result = await api('POST', `/api/clientes/${id}/pagar`, body);
+    if (!result || result.error) throw new Error((result && result.error) || 'Erro ao registrar pagamento');
+    fecharPagar();
+    toast('Pagamento registrado com sucesso.', 'sucesso');
+    await carregarClientes();
+    await carregarFinanceiro();
+  } catch (err) {
+    erro.textContent = err.message;
+    erro.style.display = 'block';
+  }
+}
+
+function exportarFinanceiroCSV() {
+  if (!financeiroData) return;
+  const linhas = [['Cliente', 'Valor', 'Forma de Pagamento', 'Data do Pagamento', 'Comprovante']];
+  financeiroData.historico.forEach(p => {
+    linhas.push([p.nome_empresa, (p.valor || 0).toFixed(2).replace('.', ','), p.forma_pagamento || '', formatData(p.data_pagamento), p.comprovante || '']);
+  });
+  const csv = linhas.map(l => l.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `financeiro-${financeiroData.mes}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ===== DELETE =====
 function confirmarDelete(id) {
   deletandoId = id;
@@ -620,6 +775,31 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 
 document.getElementById('confirm-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('confirm-overlay')) fecharConfirm();
+});
+
+document.getElementById('fin-mes').addEventListener('change', carregarFinanceiro);
+document.getElementById('fin-filtro-status').addEventListener('change', renderizarFinanceiro);
+document.getElementById('fin-filtro-forma').addEventListener('change', renderizarFinanceiro);
+document.getElementById('fin-btn-exportar').addEventListener('click', exportarFinanceiroCSV);
+
+document.getElementById('fin-card-pendente').addEventListener('click', () => {
+  document.getElementById('fin-filtro-status').value = 'pendente';
+  renderizarFinanceiro();
+});
+document.getElementById('fin-card-atrasado').addEventListener('click', () => {
+  document.getElementById('fin-filtro-status').value = 'atrasado';
+  renderizarFinanceiro();
+});
+
+document.getElementById('fin-cobrancas-body').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-fin-pagar-id]');
+  if (!btn) return;
+  abrirPagar(parseInt(btn.dataset.finPagarId, 10));
+});
+
+document.getElementById('pagar-form').addEventListener('submit', confirmarPagamento);
+document.getElementById('pagar-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('pagar-overlay')) fecharPagar();
 });
 
 document.getElementById('btn-relatorio').addEventListener('click', abrirRelatorio);
