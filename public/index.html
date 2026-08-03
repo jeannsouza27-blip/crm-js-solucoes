@@ -194,9 +194,9 @@
           </div>
         </section>
 
-        <!-- ===== PLACEHOLDERS (fases futuras) ===== -->
+        <!-- ===== PIPELINE (KANBAN) ===== -->
         <section id="view-pipeline" class="view" style="display:none">
-          <div class="empty-state"><p>🔀 Pipeline de Vendas — em breve.</p></div>
+          <div id="pipeline-board" class="pipeline-board"></div>
         </section>
         <section id="view-financeiro" class="view" style="display:none">
           <div class="toolbar">
@@ -288,8 +288,64 @@
         <section id="view-servicos" class="view" style="display:none">
           <div class="empty-state"><p>🛠️ Catálogo de Serviços — em breve.</p></div>
         </section>
-        <section id="view-relatorios" class="view" style="display:none">
-          <div class="empty-state"><p>📈 Relatórios e Analytics — em breve.</p></div>
+
+        <!-- ===== RELATÓRIOS ===== -->
+        <section id="view-relatorios" class="view viz-root" style="display:none">
+          <div class="stats-grid" id="rel-stats-grid">
+            <div class="stat-card">
+              <p class="stat-label">Total de Clientes</p>
+              <p class="stat-value" id="rel-stat-total">0</p>
+            </div>
+            <div class="stat-card">
+              <p class="stat-label">Clientes Ativos</p>
+              <p class="stat-value" id="rel-stat-ativos">0</p>
+            </div>
+            <div class="stat-card">
+              <p class="stat-label">Receita Recorrente/Mês</p>
+              <p class="stat-value" id="rel-stat-recorrente">R$ 0</p>
+            </div>
+            <div class="stat-card">
+              <p class="stat-label">Ticket Médio</p>
+              <p class="stat-value" id="rel-stat-ticket">R$ 0</p>
+            </div>
+          </div>
+
+          <h4 class="form-section-title" style="margin-top:0">Receita — Últimos 6 Meses</h4>
+          <div class="chart-card">
+            <div class="chart-legend">
+              <span class="legend-item"><span class="legend-swatch" style="background:var(--series-1)"></span>Recebido (mensais)</span>
+              <span class="legend-item"><span class="legend-swatch" style="background:var(--series-2)"></span>Receita de Projetos</span>
+            </div>
+            <div id="rel-chart-receita" class="bar-chart"></div>
+          </div>
+
+          <div class="rel-breakdown-grid">
+            <div class="chart-card">
+              <h4 class="form-section-title" style="margin-top:0">Clientes por Status</h4>
+              <div id="rel-lista-status" class="rank-list"></div>
+            </div>
+            <div class="chart-card">
+              <h4 class="form-section-title" style="margin-top:0">Clientes por Segmento</h4>
+              <div id="rel-lista-segmento" class="rank-list"></div>
+            </div>
+            <div class="chart-card">
+              <h4 class="form-section-title" style="margin-top:0">Formas de Pagamento</h4>
+              <div id="rel-lista-forma" class="rank-list"></div>
+            </div>
+          </div>
+
+          <h4 class="form-section-title">Top 5 Clientes (Mensalidade)</h4>
+          <div class="table-wrapper">
+            <table id="rel-tabela-top">
+              <thead>
+                <tr><th>Empresa</th><th>Valor Mensal</th></tr>
+              </thead>
+              <tbody id="rel-top-body"></tbody>
+            </table>
+            <div id="rel-top-vazio" class="empty-state" style="display:none">
+              <p>Nenhum cliente com mensalidade cadastrada.</p>
+            </div>
+          </div>
         </section>
         <section id="view-configuracoes" class="view" style="display:none">
           <div class="empty-state"><p>⚙️ Configurações — em breve.</p></div>

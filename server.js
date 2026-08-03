@@ -202,6 +202,44 @@ app.get('/api/clientes/:id/pagamentos', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM pagamentos WHERE cliente_id=? ORDER BY mes_referencia DESC, data_pagamento DESC').all(req.params.id));
 });
 
+// Visão agregada para a tela de Relatórios: distribuições e receita dos últimos 6 meses
+app.get('/api/relatorios/overview', auth, (req, res) => {
+  const clientesTodos = db.prepare('SELECT * FROM clientes').all();
+
+  const porStatus = {};
+  const porSegmento = {};
+  const porFormaPagamento = {};
+  clientesTodos.forEach(c => {
+    porStatus[c.status] = (porStatus[c.status] || 0) + 1;
+    porSegmento[c.segmento || 'Não informado'] = (porSegmento[c.segmento || 'Não informado'] || 0) + 1;
+    if ((c.valor_mensais || 0) + (c.valor_extra || 0) > 0) {
+      porFormaPagamento[c.forma_pagamento || 'Não informado'] = (porFormaPagamento[c.forma_pagamento || 'Não informado'] || 0) + 1;
+    }
+  });
+
+  const hoje = new Date();
+  const meses = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    meses.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  const receitaMensal = meses.map(mes => {
+    const recebido = db.prepare('SELECT COALESCE(SUM(valor),0) AS total FROM pagamentos WHERE mes_referencia = ?').get(mes).total;
+    const projetos = db.prepare("SELECT COALESCE(SUM(valor_servico),0) AS total FROM clientes WHERE data_entrega LIKE ?").get(mes + '%').total;
+    return { mes, recebido, projetos };
+  });
+
+  const topClientes = db.prepare(`
+    SELECT nome_empresa, (valor_mensais + valor_extra) AS total_mensal
+    FROM clientes
+    WHERE (valor_mensais + valor_extra) > 0
+    ORDER BY total_mensal DESC
+    LIMIT 5
+  `).all();
+
+  res.json({ porStatus, porSegmento, porFormaPagamento, receitaMensal, topClientes });
+});
+
 app.get('/api/relatorio', auth, (req, res) => {
   const mes = /^\d{4}-\d{2}$/.test(req.query.mes || '') ? req.query.mes : mesAtual();
   const pagamentos = db.prepare(`

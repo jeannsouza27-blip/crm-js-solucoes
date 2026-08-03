@@ -83,6 +83,8 @@ function mudarView(view) {
   fecharSidebarMobile();
   if (view === 'clientes') renderizarTabela();
   if (view === 'financeiro') carregarFinanceiro();
+  if (view === 'pipeline') renderizarPipeline();
+  if (view === 'relatorios') carregarRelatorios();
 }
 
 function fecharSidebarMobile() {
@@ -175,6 +177,7 @@ async function carregarClientes() {
   clientes = await api('GET', '/api/clientes') || [];
   paginaAtual = 1;
   renderizarTabela();
+  renderizarPipeline();
   atualizarStats();
   atualizarNotificacoes();
 }
@@ -574,6 +577,147 @@ function exportarFinanceiroCSV() {
   URL.revokeObjectURL(url);
 }
 
+// ===== PIPELINE (KANBAN) =====
+const PIPELINE_COLUNAS = [
+  { status: 'pendente', label: 'Em negociação' },
+  { status: 'ativo', label: 'Ativo' },
+  { status: 'pausado', label: 'Pausado' },
+  { status: 'concluido', label: 'Concluído' },
+  { status: 'cancelado', label: 'Cancelado' }
+];
+
+function renderizarPipeline() {
+  const board = document.getElementById('pipeline-board');
+  if (!board) return;
+  board.innerHTML = PIPELINE_COLUNAS.map(col => {
+    const itens = clientes.filter(c => c.status === col.status);
+    const total = itens.reduce((s, c) => s + (c.valor_mensais || 0) + (c.valor_extra || 0), 0);
+    const cards = itens.length
+      ? itens.map(c => `
+        <div class="pipeline-card" draggable="true" data-card-id="${c.id}" onclick="abrirModal(${c.id})">
+          <div class="pipeline-card-nome">${esc(c.nome_empresa)}</div>
+          ${c.nome_contato ? `<div class="pipeline-card-contato">👤 ${esc(c.nome_contato)}</div>` : ''}
+          <div class="pipeline-card-rodape">
+            <span class="pipeline-card-valor">${formatBRL((c.valor_mensais || 0) + (c.valor_extra || 0))}/mês</span>
+          </div>
+          ${c.data_vencimento ? `<div class="pipeline-card-venc" style="color:${vencimentoCor(c.data_vencimento)}">Vence ${formatData(c.data_vencimento)}</div>` : ''}
+        </div>`).join('')
+      : '<div class="pipeline-coluna-vazia">Nenhum cliente aqui.</div>';
+
+    return `
+      <div class="pipeline-coluna">
+        <div class="pipeline-coluna-header">
+          <div class="pipeline-coluna-titulo">
+            <span>${col.label}</span>
+            <span class="pipeline-coluna-count">${itens.length}</span>
+          </div>
+          <div class="pipeline-coluna-total">${formatBRL(total)}/mês</div>
+        </div>
+        <div class="pipeline-coluna-body" data-status="${col.status}">${cards}</div>
+      </div>`;
+  }).join('');
+}
+
+async function moverClientePipeline(id, novoStatus) {
+  const c = clientes.find(x => x.id === id);
+  if (!c || c.status === novoStatus) return;
+  const body = {
+    nome_empresa: c.nome_empresa, nome_contato: c.nome_contato, telefone: c.telefone,
+    valor_servico: c.valor_servico, data_entrega: c.data_entrega, valor_mensais: c.valor_mensais,
+    valor_extra: c.valor_extra, motivo_extra: c.motivo_extra, data_vencimento: c.data_vencimento,
+    status: novoStatus, observacoes: c.observacoes, pagamento_confirmado: !!c.pagamento_confirmado,
+    cnpj_cpf: c.cnpj_cpf, segmento: c.segmento, porte: c.porte, website: c.website, cep: c.cep,
+    endereco: c.endereco, numero: c.numero, bairro: c.bairro, cidade: c.cidade, uf: c.uf,
+    contato_cargo: c.contato_cargo, whatsapp: c.whatsapp, email: c.email, forma_pagamento: c.forma_pagamento
+  };
+  const result = await api('PUT', `/api/clientes/${id}`, body);
+  if (!result || result.error) { toast((result && result.error) || 'Erro ao mover cliente', 'erro'); return; }
+  toast(`${c.nome_empresa} movido para ${statusLabel(novoStatus)}.`, 'sucesso');
+  await carregarClientes();
+}
+
+// ===== RELATÓRIOS =====
+async function carregarRelatorios() {
+  const data = await api('GET', '/api/relatorios/overview');
+  if (!data) return;
+  renderizarRelatoriosStats();
+  renderizarGraficoReceita(data.receitaMensal || []);
+  renderizarRankList('rel-lista-status', Object.entries(data.porStatus || {}).map(([k, v]) => ({ nome: statusLabel(k), valor: v })));
+  renderizarRankList('rel-lista-segmento', Object.entries(data.porSegmento || {}).map(([k, v]) => ({ nome: k, valor: v })));
+  renderizarRankList('rel-lista-forma', Object.entries(data.porFormaPagamento || {}).map(([k, v]) => ({ nome: k, valor: v })));
+  renderizarTopClientes(data.topClientes || []);
+}
+
+function renderizarRelatoriosStats() {
+  document.getElementById('rel-stat-total').textContent = clientes.length;
+  document.getElementById('rel-stat-ativos').textContent = clientes.filter(c => c.status === 'ativo').length;
+  const recorrente = clientes.reduce((s, c) => s + (c.valor_mensais || 0) + (c.valor_extra || 0), 0);
+  document.getElementById('rel-stat-recorrente').textContent = formatBRL(recorrente);
+  const comMensalidade = clientes.filter(c => (c.valor_mensais || 0) + (c.valor_extra || 0) > 0);
+  document.getElementById('rel-stat-ticket').textContent = formatBRL(comMensalidade.length ? recorrente / comMensalidade.length : 0);
+}
+
+function renderizarGraficoReceita(receitaMensal) {
+  const el = document.getElementById('rel-chart-receita');
+  const max = Math.max(1, ...receitaMensal.flatMap(m => [m.recebido, m.projetos]));
+  el.innerHTML = receitaMensal.map(m => {
+    const [ano, mesNum] = m.mes.split('-');
+    const nomeMes = new Date(Number(ano), Number(mesNum) - 1, 1).toLocaleDateString('pt-BR', { month: 'short' });
+    const alturaRecebido = Math.max(2, (m.recebido / max) * 100);
+    const alturaProjetos = Math.max(2, (m.projetos / max) * 100);
+    return `
+      <div class="bar-chart-mes">
+        <div class="bar-chart-bars">
+          <div class="bar-chart-bar" style="height:${alturaRecebido}%;background:var(--series-1)">
+            <span class="bar-tooltip">Recebido: ${formatBRL(m.recebido)}</span>
+          </div>
+          <div class="bar-chart-bar" style="height:${alturaProjetos}%;background:var(--series-2)">
+            <span class="bar-tooltip">Projetos: ${formatBRL(m.projetos)}</span>
+          </div>
+        </div>
+        <div class="bar-chart-label">${nomeMes}/${ano.slice(2)}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderizarRankList(elId, itens) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (itens.length === 0) {
+    el.innerHTML = '<div class="pipeline-coluna-vazia">Sem dados.</div>';
+    return;
+  }
+  const ordenado = [...itens].sort((a, b) => b.valor - a.valor);
+  const max = Math.max(1, ...ordenado.map(i => i.valor));
+  el.innerHTML = ordenado.map(i => `
+    <div class="rank-row">
+      <div class="rank-row-top">
+        <span class="rank-row-nome">${esc(i.nome)}</span>
+        <span class="rank-row-valor">${i.valor}</span>
+      </div>
+      <div class="rank-bar-track"><div class="rank-bar-fill" style="width:${(i.valor / max) * 100}%"></div></div>
+    </div>`).join('');
+}
+
+function renderizarTopClientes(topClientes) {
+  const tbody = document.getElementById('rel-top-body');
+  const tabela = document.getElementById('rel-tabela-top');
+  const vazio = document.getElementById('rel-top-vazio');
+  if (!topClientes.length) {
+    tbody.innerHTML = '';
+    tabela.style.display = 'none';
+    vazio.style.display = 'block';
+    return;
+  }
+  tabela.style.display = 'table';
+  vazio.style.display = 'none';
+  tbody.innerHTML = topClientes.map(c => `
+    <tr>
+      <td class="nome-empresa">${esc(c.nome_empresa)}</td>
+      <td class="valor">${formatBRL(c.total_mensal)}/mês</td>
+    </tr>`).join('');
+}
+
 // ===== DELETE =====
 function confirmarDelete(id) {
   deletandoId = id;
@@ -812,6 +956,43 @@ document.getElementById('pagar-overlay').addEventListener('click', e => {
 
 document.getElementById('btn-relatorio').addEventListener('click', abrirRelatorio);
 document.getElementById('relatorio-mes').addEventListener('change', carregarRelatorio);
+
+// Drag-and-drop do quadro Pipeline
+document.getElementById('pipeline-board').addEventListener('dragstart', (e) => {
+  const card = e.target.closest('.pipeline-card');
+  if (!card) return;
+  card.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', card.dataset.cardId);
+});
+
+document.getElementById('pipeline-board').addEventListener('dragend', (e) => {
+  const card = e.target.closest('.pipeline-card');
+  if (card) card.classList.remove('dragging');
+  document.querySelectorAll('.pipeline-coluna-body.drag-over').forEach(el => el.classList.remove('drag-over'));
+});
+
+document.getElementById('pipeline-board').addEventListener('dragover', (e) => {
+  const coluna = e.target.closest('.pipeline-coluna-body');
+  if (!coluna) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  coluna.classList.add('drag-over');
+});
+
+document.getElementById('pipeline-board').addEventListener('dragleave', (e) => {
+  const coluna = e.target.closest('.pipeline-coluna-body');
+  if (coluna && !coluna.contains(e.relatedTarget)) coluna.classList.remove('drag-over');
+});
+
+document.getElementById('pipeline-board').addEventListener('drop', (e) => {
+  const coluna = e.target.closest('.pipeline-coluna-body');
+  if (!coluna) return;
+  e.preventDefault();
+  coluna.classList.remove('drag-over');
+  const id = parseInt(e.dataTransfer.getData('text/plain'), 10);
+  moverClientePipeline(id, coluna.dataset.status);
+});
 
 document.getElementById('relatorio-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('relatorio-overlay')) fecharRelatorio();
