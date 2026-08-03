@@ -77,9 +77,11 @@ function hojeStr() {
   return db.prepare("SELECT date('now', 'localtime') AS d").get().d;
 }
 
-// Registra/remove o pagamento do mês corrente conforme o checkbox "pagamento_confirmado"
+// Registra/remove o pagamento do mês corrente conforme o checkbox "pagamento_confirmado".
+// O mês do registro é o da data de pagamento informada (permite dar baixa em meses atrasados);
+// sem data informada, cai no mês corrente.
 function sincronizarPagamento(clienteId, confirmado, valorTotal, formaPagamento, comprovante, dataPagamento) {
-  const mes = mesAtual();
+  const mes = dataPagamento ? dataPagamento.substring(0, 7) : mesAtual();
   const existente = db.prepare('SELECT id FROM pagamentos WHERE cliente_id=? AND mes_referencia=?').get(clienteId, mes);
   if (confirmado) {
     if (!existente) {
@@ -177,12 +179,14 @@ app.post('/api/clientes/:id/pagar', auth, (req, res) => {
   const cliente = db.prepare('SELECT * FROM clientes WHERE id=?').get(req.params.id);
   if (!cliente) return res.status(404).json({ error: 'Cliente não encontrado' });
 
+  const { forma_pagamento, comprovante, data_pagamento } = req.body || {};
+
   // pagamento_confirmado é resetado para 0 assim que o ciclo avança (ver avancarCicloSeConfirmado),
-  // então não serve para detectar clique duplicado — checamos se já existe registro no mês corrente.
-  const jaPagoEsteMes = db.prepare('SELECT id FROM pagamentos WHERE cliente_id=? AND mes_referencia=?').get(cliente.id, mesAtual());
+  // então não serve para detectar clique duplicado — checamos se já existe registro no mês do pagamento.
+  const mesDoPagamento = data_pagamento ? data_pagamento.substring(0, 7) : mesAtual();
+  const jaPagoEsteMes = db.prepare('SELECT id FROM pagamentos WHERE cliente_id=? AND mes_referencia=?').get(cliente.id, mesDoPagamento);
   if (jaPagoEsteMes) return res.status(400).json({ error: 'Pagamento já registrado neste mês' });
 
-  const { forma_pagamento, comprovante, data_pagamento } = req.body || {};
   const formaFinal = forma_pagamento || cliente.forma_pagamento || '';
   const valorTotal = (cliente.valor_mensais || 0) + (cliente.valor_extra || 0);
   const ciclo = avancarCicloSeConfirmado(false, true, cliente.data_vencimento);
@@ -216,12 +220,25 @@ app.get('/api/financeiro', auth, (req, res) => {
   const mes = /^\d{4}-\d{2}$/.test(req.query.mes || '') ? req.query.mes : mesAtual();
   const hoje = hojeStr();
 
+  const historico = db.prepare(`
+    SELECT p.id, p.cliente_id, p.valor, p.mes_referencia, p.forma_pagamento, p.comprovante, p.data_pagamento, p.criado_em, c.nome_empresa
+    FROM pagamentos p JOIN clientes c ON c.id = p.cliente_id
+    WHERE p.mes_referencia = ?
+    ORDER BY p.data_pagamento DESC, c.nome_empresa
+  `).all(mes);
+  const pagosPorCliente = {};
+  historico.forEach(p => { pagosPorCliente[p.cliente_id] = p; });
+
   const clientesRecorrentes = db.prepare('SELECT * FROM clientes WHERE valor_mensais > 0 OR valor_extra > 0').all();
 
+  // O status "pago" é determinado pela existência de um registro em `pagamentos` para o mês
+  // consultado — não pelo boolean `pagamento_confirmado`, que é resetado assim que o ciclo
+  // avança para o próximo mês (ver avancarCicloSeConfirmado) e por isso não reflete o mês passado.
   const cobrancas = clientesRecorrentes.map(c => {
     const valor = (c.valor_mensais || 0) + (c.valor_extra || 0);
+    const pago = pagosPorCliente[c.id];
     let status = 'pendente';
-    if (c.pagamento_confirmado) status = 'pago';
+    if (pago) status = 'pago';
     else if (c.data_vencimento && c.data_vencimento < hoje) status = 'atrasado';
     return {
       id: c.id,
@@ -229,20 +246,15 @@ app.get('/api/financeiro', auth, (req, res) => {
       valor,
       data_vencimento: c.data_vencimento,
       status,
-      forma_pagamento: c.forma_pagamento,
-      pagamento_confirmado: !!c.pagamento_confirmado
+      forma_pagamento: pago ? pago.forma_pagamento : c.forma_pagamento,
+      pagamento_confirmado: !!pago,
+      data_pagamento: pago ? pago.data_pagamento : null,
+      comprovante: pago ? pago.comprovante : null
     };
   });
 
   const total_pendente = cobrancas.filter(c => c.status !== 'pago').reduce((s, c) => s + c.valor, 0);
   const total_atrasado = cobrancas.filter(c => c.status === 'atrasado').reduce((s, c) => s + c.valor, 0);
-
-  const historico = db.prepare(`
-    SELECT p.id, p.cliente_id, p.valor, p.mes_referencia, p.forma_pagamento, p.comprovante, p.data_pagamento, p.criado_em, c.nome_empresa
-    FROM pagamentos p JOIN clientes c ON c.id = p.cliente_id
-    WHERE p.mes_referencia = ?
-    ORDER BY p.data_pagamento DESC, c.nome_empresa
-  `).all(mes);
 
   const total_recebido = historico.reduce((s, p) => s + p.valor, 0);
   const receita_projetos = db.prepare(

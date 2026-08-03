@@ -514,7 +514,7 @@ function renderizarFinanceiro() {
         <td class="valor">${formatBRL(p.valor)}</td>
         <td>${p.forma_pagamento ? esc(p.forma_pagamento) : '<span style="color:var(--text-secondary)">—</span>'}</td>
         <td>${formatData(p.data_pagamento)}</td>
-        <td>${p.comprovante ? esc(p.comprovante) : '<span style="color:var(--text-secondary)">—</span>'}</td>
+        <td>${renderComprovante(p.comprovante)}</td>
       </tr>
     `).join('');
   }
@@ -733,6 +733,14 @@ function vencimentoCor(d) {
 
 function esc(str) {
   return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderComprovante(comprovante) {
+  if (!comprovante) return '<span style="color:var(--text-secondary)">—</span>';
+  if (/^https?:\/\//i.test(comprovante)) {
+    return `<a href="${esc(comprovante)}" target="_blank" rel="noopener">📎 Ver comprovante</a>`;
+  }
+  return esc(comprovante);
 }
 
 // ===== EVENTS =====
