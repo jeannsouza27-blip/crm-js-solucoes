@@ -494,9 +494,14 @@ function renderizarFinanceiro() {
         <td><span class="badge badge-pagamento-${c.status === 'pago' ? 'ok' : c.status}">${financeiroStatusLabel(c.status)}</span></td>
         <td>${c.forma_pagamento ? esc(c.forma_pagamento) : '<span style="color:var(--text-secondary)">—</span>'}</td>
         <td>
-          ${c.status !== 'pago'
-            ? `<button type="button" class="btn-icon" data-fin-pagar-id="${c.id}">💰 Registrar</button>`
-            : '<span style="color:var(--text-secondary)">—</span>'}
+          <div class="acoes" style="justify-content:flex-start">
+            ${c.status !== 'pago'
+              ? `<button type="button" class="btn-icon" data-fin-pagar-id="${c.id}">💰 Registrar</button>`
+              : '<span style="color:var(--text-secondary)">—</span>'}
+            ${c.status !== 'pago'
+              ? `<button type="button" class="btn-icon" data-fin-bloquear-id="${c.id}">🛑 Bloquear</button>`
+              : ''}
+          </div>
         </td>
       </tr>
     `).join('');
@@ -542,6 +547,24 @@ function fecharPagar() {
   document.getElementById('pagar-overlay').style.display = 'none';
 }
 
+function abrirBloquear(id) {
+  const c = financeiroData && financeiroData.cobrancas.find(x => x.id === id);
+  if (!c) return;
+
+  const nomeContato = c.nome_contato || c.nome_empresa;
+  const mensagemPadrao = `Olá ${nomeContato},\nSua assinatura está em atraso e foi bloqueada temporariamente por falta de pagamento. Entre em contato para regularizar sua situação.`;
+
+  document.getElementById('bloquear-cliente-id').value = id;
+  document.getElementById('bloquear-cliente-nome').textContent = c.nome_empresa;
+  document.getElementById('bloquear-mensagem').value = mensagemPadrao;
+  document.getElementById('bloquear-error').style.display = 'none';
+  document.getElementById('bloquear-overlay').style.display = 'flex';
+}
+
+function fecharBloquear() {
+  document.getElementById('bloquear-overlay').style.display = 'none';
+}
+
 async function confirmarPagamento(e) {
   e.preventDefault();
   const id = document.getElementById('pagar-cliente-id').value;
@@ -556,6 +579,36 @@ async function confirmarPagamento(e) {
     if (!result || result.error) throw new Error((result && result.error) || 'Erro ao registrar pagamento');
     fecharPagar();
     toast('Pagamento registrado com sucesso.', 'sucesso');
+    await carregarClientes();
+    await carregarFinanceiro();
+  } catch (err) {
+    erro.textContent = err.message;
+    erro.style.display = 'block';
+  }
+}
+
+async function confirmarBloqueio(e) {
+  e.preventDefault();
+  const id = document.getElementById('bloquear-cliente-id').value;
+  const erro = document.getElementById('bloquear-error');
+  const mensagem = document.getElementById('bloquear-mensagem').value.trim();
+
+  try {
+    const result = await api('POST', `/api/clientes/${id}/bloquear`, { mensagem });
+    if (!result || result.error) throw new Error((result && result.error) || 'Erro ao bloquear cliente');
+
+    const cliente = clientes.find(x => x.id === parseInt(id, 10)) || (financeiroData && financeiroData.cobrancas.find(x => x.id === parseInt(id, 10)));
+    const digits = onlyDigits(cliente?.whatsapp || '');
+    const urlMensagem = mensagem || 'Olá, sua assinatura foi bloqueada temporariamente por falta de pagamento.';
+
+    fecharBloquear();
+    toast('Cliente bloqueado com sucesso.', 'sucesso');
+
+    if (digits.length >= 10) {
+      const whatsappUrl = `https://wa.me/55${digits}?text=${encodeURIComponent(urlMensagem)}`;
+      window.open(whatsappUrl, '_blank', 'noopener');
+    }
+
     await carregarClientes();
     await carregarFinanceiro();
   } catch (err) {
@@ -1099,14 +1152,25 @@ document.getElementById('fin-card-atrasado').addEventListener('click', () => {
 });
 
 document.getElementById('fin-cobrancas-body').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-fin-pagar-id]');
-  if (!btn) return;
-  abrirPagar(parseInt(btn.dataset.finPagarId, 10));
+  const pagarBtn = e.target.closest('[data-fin-pagar-id]');
+  if (pagarBtn) {
+    abrirPagar(parseInt(pagarBtn.dataset.finPagarId, 10));
+    return;
+  }
+
+  const bloquearBtn = e.target.closest('[data-fin-bloquear-id]');
+  if (bloquearBtn) {
+    abrirBloquear(parseInt(bloquearBtn.dataset.finBloquearId, 10));
+  }
 });
 
 document.getElementById('pagar-form').addEventListener('submit', confirmarPagamento);
 document.getElementById('pagar-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('pagar-overlay')) fecharPagar();
+});
+document.getElementById('bloquear-form').addEventListener('submit', confirmarBloqueio);
+document.getElementById('bloquear-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('bloquear-overlay')) fecharBloquear();
 });
 
 document.getElementById('btn-relatorio').addEventListener('click', abrirRelatorio);

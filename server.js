@@ -252,6 +252,16 @@ app.post('/api/clientes/:id/pagar', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM clientes WHERE id=?').get(cliente.id));
 });
 
+app.post('/api/clientes/:id/bloquear', auth, (req, res) => {
+  const cliente = db.prepare('SELECT * FROM clientes WHERE id=?').get(req.params.id);
+  if (!cliente) return res.status(404).json({ error: 'Cliente não encontrado' });
+
+  db.prepare('UPDATE clientes SET status=?, pagamento_confirmado=? WHERE id=?')
+    .run('pausado', 0, cliente.id);
+
+  res.json(db.prepare('SELECT * FROM clientes WHERE id=?').get(cliente.id));
+});
+
 app.get('/api/clientes/:id/pagamentos', auth, (req, res) => {
   res.json(db.prepare('SELECT * FROM pagamentos WHERE cliente_id=? ORDER BY mes_referencia DESC, data_pagamento DESC').all(req.params.id));
 });

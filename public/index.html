@@ -694,6 +694,29 @@
     </div>
   </div>
 
+  <!-- BLOQUEAR POR FALTA DE PAGAMENTO -->
+  <div id="bloquear-overlay" style="display:none">
+    <div class="modal small">
+      <div class="modal-header">
+        <h3>Bloquear por falta de pagamento</h3>
+        <button class="modal-close" onclick="fecharBloquear()">✕</button>
+      </div>
+      <form id="bloquear-form" class="modal-body">
+        <input type="hidden" id="bloquear-cliente-id">
+        <p style="color:var(--text-secondary);margin-bottom:16px" id="bloquear-cliente-nome"></p>
+        <div class="field">
+          <label>Mensagem para o cliente</label>
+          <textarea id="bloquear-mensagem" rows="5" placeholder="Escreva a mensagem que será enviada ao cliente..."></textarea>
+        </div>
+        <div id="bloquear-error" class="alert-error" style="display:none"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn-outline" onclick="fecharBloquear()">Cancelar</button>
+          <button type="submit" class="btn-primary">Bloquear e enviar mensagem</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- SERVIÇO (NOVO/EDITAR) -->
   <div id="servico-overlay" style="display:none">
     <div class="modal small">
