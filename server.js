@@ -26,6 +26,7 @@ db.exec(`
     motivo_extra TEXT DEFAULT '',
     data_vencimento TEXT,
     pagamento_confirmado INTEGER DEFAULT 0,
+    bloqueio_manual INTEGER DEFAULT 0,
     status TEXT DEFAULT 'ativo',
     observacoes TEXT DEFAULT '',
     criado_em TEXT DEFAULT (datetime('now', 'localtime'))
@@ -54,6 +55,7 @@ if (!cols.includes('contato_cargo'))   db.exec("ALTER TABLE clientes ADD COLUMN 
 if (!cols.includes('whatsapp'))        db.exec("ALTER TABLE clientes ADD COLUMN whatsapp TEXT DEFAULT ''");
 if (!cols.includes('email'))           db.exec("ALTER TABLE clientes ADD COLUMN email TEXT DEFAULT ''");
 if (!cols.includes('forma_pagamento')) db.exec("ALTER TABLE clientes ADD COLUMN forma_pagamento TEXT DEFAULT ''");
+if (!cols.includes('bloqueio_manual')) db.exec('ALTER TABLE clientes ADD COLUMN bloqueio_manual INTEGER DEFAULT 0');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS pagamentos (
@@ -197,32 +199,32 @@ app.get('/api/clientes', auth, (req, res) => {
 });
 
 app.post('/api/clientes', auth, (req, res) => {
-  const { nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes, pagamento_confirmado,
+  const { nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes, pagamento_confirmado, bloqueio_manual,
     cnpj_cpf, segmento, porte, website, cep, endereco, numero, bairro, cidade, uf, contato_cargo, whatsapp, email, forma_pagamento } = req.body || {};
   if (!nome_empresa) return res.status(400).json({ error: 'Nome da empresa obrigatório' });
   const ciclo = avancarCicloSeConfirmado(false, !!pagamento_confirmado, data_vencimento || null);
   const r = db.prepare(`
-    INSERT INTO clientes (nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, valor_extra, motivo_extra, data_vencimento, pagamento_confirmado, status, observacoes,
+    INSERT INTO clientes (nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, valor_extra, motivo_extra, data_vencimento, pagamento_confirmado, bloqueio_manual, status, observacoes,
       cnpj_cpf, segmento, porte, website, cep, endereco, numero, bairro, cidade, uf, contato_cargo, whatsapp, email, forma_pagamento)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', ciclo.dataVencimento, ciclo.pagamentoConfirmado, status || 'ativo', observacoes || '',
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', ciclo.dataVencimento, ciclo.pagamentoConfirmado, bloqueio_manual ? 1 : 0, status || 'ativo', observacoes || '',
     cnpj_cpf || '', segmento || '', porte || '', website || '', cep || '', endereco || '', numero || '', bairro || '', cidade || '', uf || '', contato_cargo || '', whatsapp || '', email || '', forma_pagamento || '');
   sincronizarPagamento(r.lastInsertRowid, !!pagamento_confirmado, (Number(valor_mensais) || 0) + (Number(req.body.valor_extra) || 0), forma_pagamento, '', null);
   res.status(201).json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(r.lastInsertRowid));
 });
 
 app.put('/api/clientes/:id', auth, (req, res) => {
-  const { nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes, pagamento_confirmado,
+  const { nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes, pagamento_confirmado, bloqueio_manual,
     cnpj_cpf, segmento, porte, website, cep, endereco, numero, bairro, cidade, uf, contato_cargo, whatsapp, email, forma_pagamento } = req.body || {};
   const anterior = db.prepare('SELECT pagamento_confirmado FROM clientes WHERE id=?').get(req.params.id);
   const estavaConfirmado = !!(anterior && anterior.pagamento_confirmado);
   const ciclo = avancarCicloSeConfirmado(estavaConfirmado, !!pagamento_confirmado, data_vencimento || null);
   db.prepare(`
     UPDATE clientes
-    SET nome_empresa=?, nome_contato=?, telefone=?, valor_servico=?, data_entrega=?, valor_mensais=?, valor_extra=?, motivo_extra=?, data_vencimento=?, pagamento_confirmado=?, status=?, observacoes=?,
+    SET nome_empresa=?, nome_contato=?, telefone=?, valor_servico=?, data_entrega=?, valor_mensais=?, valor_extra=?, motivo_extra=?, data_vencimento=?, pagamento_confirmado=?, bloqueio_manual=?, status=?, observacoes=?,
       cnpj_cpf=?, segmento=?, porte=?, website=?, cep=?, endereco=?, numero=?, bairro=?, cidade=?, uf=?, contato_cargo=?, whatsapp=?, email=?, forma_pagamento=?
     WHERE id=?
-  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', ciclo.dataVencimento, ciclo.pagamentoConfirmado, status, observacoes || '',
+  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', ciclo.dataVencimento, ciclo.pagamentoConfirmado, bloqueio_manual ? 1 : 0, status, observacoes || '',
     cnpj_cpf || '', segmento || '', porte || '', website || '', cep || '', endereco || '', numero || '', bairro || '', cidade || '', uf || '', contato_cargo || '', whatsapp || '', email || '', forma_pagamento || '', req.params.id);
   sincronizarPagamento(Number(req.params.id), !!pagamento_confirmado, (Number(valor_mensais) || 0) + (Number(req.body.valor_extra) || 0), forma_pagamento, '', null);
   res.json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(req.params.id));
@@ -340,13 +342,15 @@ app.get('/api/financeiro', auth, (req, res) => {
     const valor = (c.valor_mensais || 0) + (c.valor_extra || 0);
     const pago = pagosPorCliente[c.id];
     let status = 'pendente';
-    if (pago) status = 'pago';
+    if (c.bloqueio_manual) status = 'bloqueado';
+    else if (pago) status = 'pago';
     else if (c.data_vencimento && c.data_vencimento < hoje) status = 'atrasado';
     return {
       id: c.id,
       nome_empresa: c.nome_empresa,
       valor,
       data_vencimento: c.data_vencimento,
+      bloqueio_manual: !!c.bloqueio_manual,
       status,
       forma_pagamento: pago ? pago.forma_pagamento : c.forma_pagamento,
       pagamento_confirmado: !!pago,

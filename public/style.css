@@ -455,6 +455,7 @@ tbody tr:hover { background: rgba(56,189,248,0.03); }
 .badge-pagamento-ok { background: rgba(22,163,74,0.15); color: #4ade80; border: 1px solid rgba(22,163,74,0.3); }
 .badge-pagamento-pendente { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
 .badge-pagamento-atrasado { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+.badge-pagamento-bloqueado { background: rgba(107,114,128,0.18); color: #9ca3af; border: 1px solid rgba(107,114,128,0.35); }
 
 /* ===== TABELA — ORDENAÇÃO E PAGINAÇÃO ===== */
 th.sortable { cursor: pointer; user-select: none; }

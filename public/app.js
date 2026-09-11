@@ -327,6 +327,7 @@ function abrirModal(id) {
   document.getElementById('f-motivo-extra').value = c ? (c.motivo_extra || '') : '';
   document.getElementById('f-vencimento').value = c && c.data_vencimento ? c.data_vencimento.split('T')[0] : '';
   document.getElementById('f-pagamento-confirmado').checked = c ? !!c.pagamento_confirmado : false;
+  document.getElementById('f-bloqueio-manual').checked = c ? !!c.bloqueio_manual : false;
   document.getElementById('f-cnpj-hint').textContent = '';
   document.getElementById('f-cnpj-hint').className = 'field-hint';
   atualizarTotalPreview();
@@ -372,6 +373,7 @@ async function salvarCliente(e) {
     motivo_extra: document.getElementById('f-motivo-extra').value.trim(),
     data_vencimento: document.getElementById('f-vencimento').value || null,
     pagamento_confirmado: document.getElementById('f-pagamento-confirmado').checked,
+    bloqueio_manual: document.getElementById('f-bloqueio-manual').checked,
     status: document.getElementById('f-status').value,
     observacoes: document.getElementById('f-obs').value.trim()
   };
@@ -451,7 +453,7 @@ async function carregarFinanceiro() {
 }
 
 function financeiroStatusLabel(s) {
-  return { pago: 'Pago', pendente: 'Pendente', atrasado: 'Atrasado' }[s] || s;
+  return { pago: 'Pago', pendente: 'Pendente', atrasado: 'Atrasado', bloqueado: 'Bloqueado' }[s] || s;
 }
 
 function getCobrancasFiltradas() {
