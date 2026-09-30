@@ -679,16 +679,8 @@ function renderizarPipeline() {
 async function moverClientePipeline(id, novoStatus) {
   const c = clientes.find(x => x.id === id);
   if (!c || c.status === novoStatus) return;
-  const body = {
-    nome_empresa: c.nome_empresa, nome_contato: c.nome_contato, telefone: c.telefone,
-    valor_servico: c.valor_servico, data_entrega: c.data_entrega, valor_mensais: c.valor_mensais,
-    valor_extra: c.valor_extra, motivo_extra: c.motivo_extra, data_vencimento: c.data_vencimento,
-    status: novoStatus, observacoes: c.observacoes, pagamento_confirmado: !!c.pagamento_confirmado,
-    cnpj_cpf: c.cnpj_cpf, segmento: c.segmento, porte: c.porte, website: c.website, cep: c.cep,
-    endereco: c.endereco, numero: c.numero, bairro: c.bairro, cidade: c.cidade, uf: c.uf,
-    contato_cargo: c.contato_cargo, whatsapp: c.whatsapp, email: c.email, forma_pagamento: c.forma_pagamento
-  };
-  const result = await api('PUT', `/api/clientes/${id}`, body);
+  // Envia só o status; o servidor preserva o resto do cadastro
+  const result = await api('PUT', `/api/clientes/${id}`, { status: novoStatus });
   if (!result || result.error) { toast((result && result.error) || 'Erro ao mover cliente', 'erro'); return; }
   toast(`${c.nome_empresa} movido para ${statusLabel(novoStatus)}.`, 'sucesso');
   await carregarClientes();
