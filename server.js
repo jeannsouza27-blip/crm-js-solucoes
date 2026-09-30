@@ -170,8 +170,18 @@ function avancarCicloSeConfirmado(estavaConfirmado, confirmadoAgora, dataVencime
 
 // Backfill: clientes já marcados como confirmados antes de existir o histórico
 // não tinham registro nenhum. Garante o registro do mês corrente para eles.
-for (const c of db.prepare('SELECT id, valor_mensais, valor_extra, forma_pagamento FROM clientes WHERE pagamento_confirmado = 1').all()) {
-  sincronizarPagamento(c.id, true, (c.valor_mensais || 0) + (c.valor_extra || 0), c.forma_pagamento, '', null);
+//
+// DESATIVADO (hotfix perda-pagamentos, 2026-09-30). Era uma migração única, de
+// 2026-07-01 (commit a648121), para clientes confirmados antes de existir a tabela
+// pagamentos. Como roda a cada boot, todo restart num mês novo criava um pagamento
+// que não aconteceu para cada cliente com pagamento_confirmado = 1 (receita inflada).
+// Remover o bloco de vez quando a varredura do Passo 2 tiver confirmado e tratado os
+// pagamentos fantasma já gravados. Para reativar, basta trocar a constante para true.
+const BACKFILL_PAGAMENTOS_ATIVO = false;
+if (BACKFILL_PAGAMENTOS_ATIVO) {
+  for (const c of db.prepare('SELECT id, valor_mensais, valor_extra, forma_pagamento FROM clientes WHERE pagamento_confirmado = 1').all()) {
+    sincronizarPagamento(c.id, true, (c.valor_mensais || 0) + (c.valor_extra || 0), c.forma_pagamento, '', null);
+  }
 }
 
 app.use(express.json());
