@@ -145,6 +145,9 @@ function sincronizarPagamento(clienteId, confirmado, valorTotal, formaPagamento,
         .run(clienteId, valorTotal, mes, formaPagamento || '', comprovante || '', dataPagamento || hojeStr());
     }
   } else if (existente) {
+    // Registro completo no log do container antes de remover, para permitir reconstrução manual
+    const removido = db.prepare('SELECT * FROM pagamentos WHERE id=?').get(existente.id);
+    console.warn(`[pagamento-removido] ${new Date().toISOString()} ${JSON.stringify(removido)}`);
     db.prepare('DELETE FROM pagamentos WHERE id=?').run(existente.id);
   }
 }
@@ -214,19 +217,26 @@ app.post('/api/clientes', auth, (req, res) => {
 });
 
 app.put('/api/clientes/:id', auth, (req, res) => {
+  const anterior = db.prepare('SELECT * FROM clientes WHERE id=?').get(req.params.id);
+  if (!anterior) return res.status(404).json({ error: 'Cliente não encontrado' });
+  // Update parcial: campo ausente no payload mantém o valor gravado, em vez de ser zerado
+  const body = { ...anterior, ...req.body };
   const { nome_empresa, nome_contato, telefone, valor_servico, data_entrega, valor_mensais, data_vencimento, status, observacoes, pagamento_confirmado, bloqueio_manual,
-    cnpj_cpf, segmento, porte, website, cep, endereco, numero, bairro, cidade, uf, contato_cargo, whatsapp, email, forma_pagamento } = req.body || {};
-  const anterior = db.prepare('SELECT pagamento_confirmado FROM clientes WHERE id=?').get(req.params.id);
-  const estavaConfirmado = !!(anterior && anterior.pagamento_confirmado);
+    cnpj_cpf, segmento, porte, website, cep, endereco, numero, bairro, cidade, uf, contato_cargo, whatsapp, email, forma_pagamento } = body;
+  const estavaConfirmado = !!anterior.pagamento_confirmado;
   const ciclo = avancarCicloSeConfirmado(estavaConfirmado, !!pagamento_confirmado, data_vencimento || null);
   db.prepare(`
     UPDATE clientes
     SET nome_empresa=?, nome_contato=?, telefone=?, valor_servico=?, data_entrega=?, valor_mensais=?, valor_extra=?, motivo_extra=?, data_vencimento=?, pagamento_confirmado=?, bloqueio_manual=?, status=?, observacoes=?,
       cnpj_cpf=?, segmento=?, porte=?, website=?, cep=?, endereco=?, numero=?, bairro=?, cidade=?, uf=?, contato_cargo=?, whatsapp=?, email=?, forma_pagamento=?
     WHERE id=?
-  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(req.body.valor_extra) || 0, req.body.motivo_extra || '', ciclo.dataVencimento, ciclo.pagamentoConfirmado, bloqueio_manual ? 1 : 0, status, observacoes || '',
+  `).run(nome_empresa, nome_contato || '', telefone || '', Number(valor_servico) || 0, data_entrega || null, Number(valor_mensais) || 0, Number(body.valor_extra) || 0, body.motivo_extra || '', ciclo.dataVencimento, ciclo.pagamentoConfirmado, bloqueio_manual ? 1 : 0, status, observacoes || '',
     cnpj_cpf || '', segmento || '', porte || '', website || '', cep || '', endereco || '', numero || '', bairro || '', cidade || '', uf || '', contato_cargo || '', whatsapp || '', email || '', forma_pagamento || '', req.params.id);
-  sincronizarPagamento(Number(req.params.id), !!pagamento_confirmado, (Number(valor_mensais) || 0) + (Number(req.body.valor_extra) || 0), forma_pagamento, '', null);
+  // Só remove o pagamento do mês quando a flag passa de 1 para 0 (desmarcado de verdade).
+  // Receber false com a flag já em 0 — o normal depois que o ciclo avança — não apaga nada.
+  if (pagamento_confirmado || estavaConfirmado) {
+    sincronizarPagamento(Number(req.params.id), !!pagamento_confirmado, (Number(valor_mensais) || 0) + (Number(body.valor_extra) || 0), forma_pagamento, '', null);
+  }
   res.json(db.prepare('SELECT * FROM clientes WHERE id = ?').get(req.params.id));
 });
 
